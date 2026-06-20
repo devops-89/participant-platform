@@ -56,8 +56,14 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const initialValues = React.useMemo(() => {
     return (
       fields?.reduce((acc: any, field: any) => {
-        if (initialData && initialData[field.id] !== undefined) {
-          acc[field.id] = initialData[field.id];
+        const valById = initialData && initialData[field.id];
+        const valByLabel = initialData && field.label && initialData[field.label];
+        const valByTrimmed = initialData && field.label && initialData[field.label.trim()];
+        
+        const finalVal = valById !== undefined ? valById : (valByLabel !== undefined ? valByLabel : valByTrimmed);
+
+        if (finalVal !== undefined && finalVal !== null) {
+          acc[field.id] = finalVal;
           return acc;
         }
 

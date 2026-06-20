@@ -291,21 +291,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
       if (f.label) mappedFieldKeys.add(f.label.trim());
     });
 
-    const extraFields = Object.entries(submissionData).filter(
-      ([key]) => !mappedFieldKeys.has(key) && !key.endsWith('_downloadUrl')
-    );
 
-    if (extraFields.length > 0) {
-      groups.push({
-        title: "Additional Details",
-        fields: extraFields.map(([key, value]) => ({
-          id: key,
-          label: key,
-          value,
-          type: "textfield",
-        })),
-      });
-    }
 
     groups.forEach((group) => {
       const firstNameFieldIdx = group.fields.findIndex(
@@ -416,6 +402,27 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
           <Grid size={{ xs: 12, sm: 4, md: 3, lg: 2 }} sx={{ display: "flex", justifyContent: "center" }}>
             <Avatar
               variant="rounded"
+              src={(() => {
+                const submissionData = entry?.submission?.data || {};
+                const thumbnailField = templateFields?.find((f: any) => f.label?.toLowerCase().includes("thumbnail"));
+                let thumbnailUrl = "";
+                if (thumbnailField) {
+                  thumbnailUrl = submissionData[`${thumbnailField.id}_downloadUrl`] || submissionData[`${thumbnailField.label}_downloadUrl`] || submissionData[thumbnailField.id] || submissionData[thumbnailField.label] || "";
+                }
+                if (!thumbnailUrl) {
+                  const downloadUrlKey = Object.keys(submissionData).find((key) => key.endsWith("_downloadUrl"));
+                  thumbnailUrl = downloadUrlKey ? submissionData[downloadUrlKey] : "";
+                }
+                if (!thumbnailUrl) {
+                  const imageUrlKey = Object.keys(submissionData).find((key) => {
+                    if (key === "status" || key.endsWith("_downloadUrl")) return false;
+                    const val = submissionData[key];
+                    return typeof val === "string" && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(val);
+                  });
+                  if (imageUrlKey) thumbnailUrl = submissionData[imageUrlKey];
+                }
+                return thumbnailUrl;
+              })()}
               sx={{
                 width: 120,
                 height: 120,
@@ -518,6 +525,15 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
             </Grid>
           </Grid>
         </Grid>
+
+        {entry.status?.toLowerCase() === "rejected" && entry.rejectReason && (
+          <Box sx={{ mt: 4, p: 2, borderRadius: 2, bgcolor: "rgba(220, 38, 38, 0.05)", border: "1px solid rgba(220, 38, 38, 0.2)" }}>
+            <Typography variant="subtitle2" sx={{ color: "#dc2626", fontWeight: 700, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Info fontSize="small" /> Reason for Rejection
+            </Typography>
+            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, pl: 3 }}>{entry.rejectReason}</Typography>
+          </Box>
+        )}
       </Card>
 
       {/* Submission Details grouped by Step Breaks */}

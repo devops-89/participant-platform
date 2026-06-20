@@ -78,9 +78,13 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
           if (entryId) {
             try {
               const entryRes = await entryControllers.getEntryById(fetchedContestId, entryId);
-              if (entryRes?.data?.submission?.data) {
-                 const sData = entryRes.data.submission.data;
-                 setInitialData(sData.data || sData);
+              const actualEntry = entryRes?.data || entryRes;
+              if (actualEntry?.submission?.data) {
+                 let sData = actualEntry.submission.data;
+                 if (typeof sData === 'string') {
+                    try { sData = JSON.parse(sData); } catch(e) {}
+                 }
+                 setInitialData(sData?.data || sData || {});
               }
             } catch (e) {
               console.error("Failed to load draft entry data:", e);
@@ -110,11 +114,23 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
 
       const formData = new FormData();
       Object.keys(values).forEach(key => {
-        if (values[key] !== undefined && values[key] !== null && values[key] !== "") {
-          formData.append(key, values[key]);
+        const value = values[key];
+        const fieldDef = templateFields.find(f => f.id === key);
+        
+        if (value !== undefined && value !== null && value !== "") {
+          if (fieldDef?.type === "file_upload" || fieldDef?.type === "file" || fieldDef?.type === "image") {
+            if (value instanceof File) {
+              formData.append(key, value);
+            }
+          } else {
+            formData.append(key, value);
+          }
         }
       });
       formData.append("status", status);
+      if (status === "draft") {
+        formData.append("isDraft", "true");
+      }
 
       await entryControllers.updateEntrySubmission(contestId, entryId, formData);
       showSnackbar(`Draft ${status === 'draft' ? 'saved' : 'submitted'} successfully!`, "success");

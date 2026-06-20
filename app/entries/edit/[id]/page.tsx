@@ -1,5 +1,6 @@
 import EditEntry from "@/components/layouts/EditEntry";
 
-export default function EditEntryPage({ params }: { params: { id: string } }) {
-  return <EditEntry entryId={params.id} />;
+export default async function EditEntryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <EditEntry entryId={id} />;
 }

@@ -102,6 +102,9 @@ const AddEntry = () => {
         }
       });
       formData.append("status", status);
+      if (status === "draft") {
+        formData.append("isDraft", "true");
+      }
 
       await entryControllers.createEntry(contestId, formData);
       showSnackbar(`Entry ${status === 'draft' ? 'saved as draft' : 'added'} successfully!`, "success");

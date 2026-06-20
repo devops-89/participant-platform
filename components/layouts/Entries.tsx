@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, IconButton, Tooltip, CircularProgress } from "@mui/material";
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, IconButton, Tooltip, CircularProgress, Avatar } from "@mui/material";
 import { useAppTheme } from "@/context/ThemeContext";
 import { CloudUpload, Visibility, Edit } from "@mui/icons-material";
 import Link from "next/link";
@@ -174,24 +174,24 @@ const Entries = () => {
         <Table>
           <TableHead sx={{ bgcolor: "rgba(0,0,0,0.02)" }}>
             <TableRow>
+              <TableCell sx={{ fontWeight: 600 }}>Thumbnail</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Title</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>School</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Author</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Submission Date</TableCell>
               <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
                   <CircularProgress size={30} sx={{ color: colors.PRIMARY }} />
                 </TableCell>
               </TableRow>
             ) : entries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
                   <Typography color="text.secondary">No entries found.</Typography>
                 </TableCell>
               </TableRow>
@@ -241,24 +241,42 @@ const Entries = () => {
                   }
                 }
 
-                const schoolField = userFields.find((f: any) => f.label?.toLowerCase().includes("school")) || templateFields.find((f: any) => f.label?.toLowerCase().includes("school"));
-                let school = "-";
-                if (schoolField) {
-                  school = authorData[schoolField.label] || authorData[schoolField.id] || subData[schoolField.label] || subData[schoolField.id] || "-";
-                } else {
-                  school = authorData["School"] || subData["School"] || subData["2ndbock91"] || "-";
+                const thumbnailField = templateFields?.find((f: any) => f.label?.toLowerCase().includes("thumbnail"));
+                let thumbnailUrl = "";
+                if (thumbnailField) {
+                  thumbnailUrl = subData[`${thumbnailField.id}_downloadUrl`] || subData[`${thumbnailField.label}_downloadUrl`] || subData[thumbnailField.id] || subData[thumbnailField.label] || "";
                 }
-
-                const emailField = userFields.find((f: any) => f.label?.toLowerCase().includes("email"));
-                let email = "-";
-                if (emailField) {
-                  email = authorData[emailField.label] || authorData[emailField.id] || subData[emailField.label] || subData[emailField.id] || entry?.participant?.email || "-";
-                } else {
-                  email = authorData["Email"] || subData["Email"] || entry?.participant?.email || "-";
+                
+                if (!thumbnailUrl) {
+                  const downloadUrlKey = Object.keys(subData).find((key) => key.endsWith("_downloadUrl"));
+                  thumbnailUrl = downloadUrlKey ? subData[downloadUrlKey] : "";
+                }
+                
+                if (!thumbnailUrl) {
+                  const imageUrlKey = Object.keys(subData).find((key) => {
+                    if (key === "status" || key.endsWith("_downloadUrl")) return false;
+                    const val = subData[key];
+                    return typeof val === "string" && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(val);
+                  });
+                  if (imageUrlKey) thumbnailUrl = subData[imageUrlKey];
                 }
 
                 return (
                   <TableRow key={entry.id} hover>
+                    <TableCell>
+                      <Avatar
+                        variant="rounded"
+                        src={thumbnailUrl}
+                        onClick={() => router.push(`/entries/${entry.id}`)}
+                        sx={{
+                          width: 50,
+                          height: 30,
+                          cursor: "pointer",
+                          "&:hover": { opacity: 0.8, transform: "scale(1.1)" },
+                          transition: "all 0.2s ease",
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
                         {entryTitle || "Untitled"}
@@ -266,41 +284,54 @@ const Entries = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY }}>
-                        {email}
+                        {authorName || "Unknown"}
                       </Typography>
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY }}>
-                        {school}
-                      </Typography>
+                    <TableCell sx={{ fontSize: 13 }}>
+                      {entry.score !== undefined && entry.score !== null ? entry.score : 0}
                     </TableCell>
                     <TableCell>
-                      <Box 
-                        sx={{ 
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          px: 1.5, 
-                          py: 0.5, 
-                          borderRadius: 1, 
-                          bgcolor: entry.status?.toLowerCase() === "approved" ? "#E6F4EA" : 
-                                   entry.status?.toLowerCase() === "evaluated" ? "#e0e7ff" : 
-                                   entry.status?.toLowerCase() === "rejected" ? "#FCE8E6" : "#FEF7E0",
-                          color: entry.status?.toLowerCase() === "approved" ? "#137333" : 
-                                 entry.status?.toLowerCase() === "evaluated" ? "#3730a3" : 
-                                 entry.status?.toLowerCase() === "rejected" ? "#C5221F" : "#B06000",
-                          fontWeight: 600,
-                          textTransform: 'capitalize',
-                          fontSize: '0.75rem',
-                          letterSpacing: '0.5px'
-                        }}
-                      >
-                        {entry.status?.toLowerCase() === "approved" ? "Moderate" : entry.status?.toLowerCase() === "evaluated" ? "Evaluated" : (entry.status || "Pending")}
-                      </Box>
+                      {(() => {
+                        const displayStatus = entry.status || "Pending";
+                        const isEvaluatedBackend = displayStatus.toLowerCase() === "evaluated" || (entry.score !== undefined && entry.score !== null && entry.score > 0);
+
+                        const getStatusColor = (status: string) => {
+                          const lower = status.toLowerCase();
+                          if (lower === "draft") return { bg: "#f1f5f9", text: "#475569" };      // Slate
+                          if (lower === "pending") return { bg: "#fef3c7", text: "#b45309" };    // Amber
+                          if (lower === "approved") return { bg: "#d1fae5", text: "#047857" };   // Emerald
+                          if (lower === "rejected") return { bg: "#fee2e2", text: "#b91c1c" };   // Red
+                          if (lower === "evaluated") return { bg: "#e0f2fe", text: "#0369a1" };  // Sky Blue
+                          if (lower === "semifinal") return { bg: "#f3e8ff", text: "#6b21a8" };  // Purple
+                          if (lower === "final") return { bg: "#fce7f3", text: "#be185d" };      // Pink
+                          if (lower === "winner") return { bg: "#fef08a", text: "#a16207" };     // Gold
+                          return { bg: "#f8fafc", text: "#64748b" };
+                        };
+
+                        const statusColors = getStatusColor(isEvaluatedBackend ? "evaluated" : displayStatus);
+                        
+                        let uiStatus = displayStatus;
+                        if (isEvaluatedBackend) uiStatus = "Evaluated";
+                        else if (displayStatus.toLowerCase() === "approved") uiStatus = "Moderate";
+
+                        return (
+                          <Chip 
+                            label={uiStatus}
+                            size="small"
+                            sx={{ 
+                              bgcolor: statusColors.bg,
+                              color: statusColors.text,
+                              fontWeight: 700,
+                              textTransform: 'capitalize',
+                              fontSize: '0.75rem',
+                              borderRadius: "6px",
+                              height: 24,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{new Date(entry.createdAt || entry.created_at).toLocaleDateString()}</Typography>
-                    </TableCell>
+
                     <TableCell align="right">
                       {entry.status?.toLowerCase() === "draft" && (
                         <Tooltip title="Edit Draft">
