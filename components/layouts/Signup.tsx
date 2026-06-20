@@ -19,6 +19,7 @@ import {
   Select,
   TextField,
   Typography,
+  Grid
 } from "@mui/material";
 import { useFormik } from "formik";
 import { useRouter } from "next/navigation";
@@ -237,15 +238,15 @@ export default function Signup() {
     <Box
       sx={{
         minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        boxSizing: "border-box",
         background: `linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)`,
-        padding: 2,
+        pt: { xs: 6, md: 8 },
+        pb: 4,
+        px: 2,
         transition: "background 0.3s ease",
       }}
     >
-      <Container maxWidth="sm">
+      <Container maxWidth="md">
         <form onSubmit={formik.handleSubmit}>
           <Paper
             elevation={0}
@@ -276,9 +277,10 @@ export default function Signup() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <Grid container spacing={3}>
               {/* Country Selector */}
-              <FormControl fullWidth margin="normal" error={formik.touched.countryId && Boolean(formik.errors.countryId)}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth error={formik.touched.countryId && Boolean(formik.errors.countryId)}>
                 <InputLabel id="country-select-label" sx={{ color: colors.TEXT_SECONDARY, "&.Mui-focused": { color: colors.PRIMARY } }}>Country</InputLabel>
                 <Select
                   labelId="country-select-label"
@@ -314,13 +316,15 @@ export default function Signup() {
                     </MenuItem>
                   ))}
                 </Select>
-                {formik.touched.countryId && formik.errors.countryId && (
-                  <FormHelperText>{formik.errors.countryId as string}</FormHelperText>
-                )}
-              </FormControl>
+                  {formik.touched.countryId && formik.errors.countryId && (
+                    <FormHelperText>{formik.errors.countryId as string}</FormHelperText>
+                  )}
+                </FormControl>
+              </Grid>
 
               {/* Contest Selector */}
-              <FormControl fullWidth margin="normal" error={formik.touched.contestId && Boolean(formik.errors.contestId)}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth error={formik.touched.contestId && Boolean(formik.errors.contestId)}>
                 <InputLabel id="contest-select-label" sx={{ color: colors.TEXT_SECONDARY, "&.Mui-focused": { color: colors.PRIMARY } }}>Contest</InputLabel>
                 <Select
                   labelId="contest-select-label"
@@ -342,15 +346,18 @@ export default function Signup() {
                     </MenuItem>
                   ))}
                 </Select>
-                {formik.touched.contestId && formik.errors.contestId && (
-                  <FormHelperText>{formik.errors.contestId as string}</FormHelperText>
-                )}
-              </FormControl>
+                  {formik.touched.contestId && formik.errors.contestId && (
+                    <FormHelperText>{formik.errors.contestId as string}</FormHelperText>
+                  )}
+                </FormControl>
+              </Grid>
 
               {isLoadingTemplate && (
-                <Typography variant="body2" sx={{ color: colors.PRIMARY, mt: 2, textAlign: "center" }}>
-                  Loading registration fields...
-                </Typography>
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant="body2" sx={{ color: colors.PRIMARY, textAlign: "center" }}>
+                    Loading registration fields...
+                  </Typography>
+                </Grid>
               )}
 
               {/* Dynamic Fields */}
@@ -360,7 +367,8 @@ export default function Signup() {
 
                 if (field.type === "select" || field.type === "dropdown" || field.type === "countrySelector") {
                   return (
-                    <FormControl key={field.id} fullWidth margin="normal" error={formik.touched[field.id] && Boolean(formik.errors[field.id])}>
+                    <Grid size={{ xs: 12, sm: 6 }} key={field.id}>
+                      <FormControl fullWidth error={formik.touched[field.id] && Boolean(formik.errors[field.id])}>
                       <InputLabel id={`label-${field.id}`} sx={{ color: colors.TEXT_SECONDARY, "&.Mui-focused": { color: colors.PRIMARY } }}>{field.label}</InputLabel>
                       <Select
                         labelId={`label-${field.id}`}
@@ -401,16 +409,18 @@ export default function Signup() {
                           ))
                         )}
                       </Select>
-                      {formik.touched[field.id] && formik.errors[field.id] && (
-                        <FormHelperText>{formik.errors[field.id] as string}</FormHelperText>
-                      )}
-                    </FormControl>
+                        {formik.touched[field.id] && formik.errors[field.id] && (
+                          <FormHelperText>{formik.errors[field.id] as string}</FormHelperText>
+                        )}
+                      </FormControl>
+                    </Grid>
                   );
                 }
 
                 if (field.type === "file_upload" || field.type === "file" || field.type === "image") {
                   return (
-                    <Box key={field.id} sx={{ mt: 2, mb: 1, p: 2, border: "1px dashed", borderColor: colors.BORDER, borderRadius: "10px", textAlign: "center" }}>
+                    <Grid size={{ xs: 12 }} key={field.id}>
+                      <Box sx={{ p: 2, border: "1px dashed", borderColor: colors.BORDER, borderRadius: "10px", textAlign: "center" }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
                         {field.label} {field.required && "*"}
                       </Typography>
@@ -436,19 +446,19 @@ export default function Signup() {
                           Selected: {(formik.values[field.id] as unknown as File).name || "File attached"}
                         </Typography>
                       )}
-                      {formik.touched[field.id] && formik.errors[field.id] && (
-                        <FormHelperText error sx={{ textAlign: "center", mt: 1 }}>
-                          {formik.errors[field.id] as string}
-                        </FormHelperText>
-                      )}
-                    </Box>
+                        {formik.touched[field.id] && formik.errors[field.id] && (
+                          <FormHelperText error sx={{ textAlign: "center", mt: 1 }}>
+                            {formik.errors[field.id] as string}
+                          </FormHelperText>
+                        )}
+                      </Box>
+                    </Grid>
                   );
                 }
 
                 return (
-                  <TextField
-                    key={field.id}
-                    margin="normal"
+                  <Grid size={{ xs: 12, sm: isPassword ? 12 : 6 }} key={field.id}>
+                    <TextField
                     fullWidth
                     id={field.id}
                     name={field.id}
@@ -478,10 +488,12 @@ export default function Signup() {
                       },
                     } : undefined}
                   />
+                  </Grid>
                 );
               })}
 
-              <Box
+              <Grid size={{ xs: 12 }}>
+                <Box
                 sx={{
                   display: "flex",
                   justifyContent: "center",
@@ -503,39 +515,42 @@ export default function Signup() {
                   Already have an account? Sign In
                 </Link>
               </Box>
+              </Grid>
 
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                disabled={isLoading || isLoadingContests || isLoadingTemplate || (!formik.values.contestId)}
-                sx={{
-                  mt: 2,
-                  mb: 2,
-                  py: 1.5,
-                  bgcolor: colors.PRIMARY,
-                  color: "white",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  textTransform: "none",
-                  borderRadius: 2,
-                  transition: "all 0.2s ease-in-out",
-                  "&:hover": {
-                    bgcolor: colors.PRIMARY,
-                    opacity: 0.9,
-                    transform: "translateY(-1px)",
-                    boxShadow: `0 10px 15px -3px ${colors.PRIMARY}40`,
-                  },
-                  "&.Mui-disabled": {
-                    bgcolor: colors.PRIMARY,
-                    opacity: 0.7,
-                    color: "white",
-                  },
-                }}
-              >
-                {isLoading ? "Creating Account..." : "Sign Up"}
-              </Button>
-            </Box>
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: "flex", justifyContent: "center", mt: 2, mb: 2 }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={isLoading || isLoadingContests || isLoadingTemplate || (!formik.values.contestId)}
+                    sx={{
+                      py: 1.5,
+                      width: { xs: "100%", sm: "200px" },
+                      bgcolor: colors.PRIMARY,
+                      color: "white",
+                      fontWeight: 600,
+                      fontSize: "1rem",
+                      textTransform: "none",
+                      borderRadius: 2,
+                      transition: "all 0.2s ease-in-out",
+                      "&:hover": {
+                        bgcolor: colors.PRIMARY,
+                        opacity: 0.9,
+                        transform: "translateY(-1px)",
+                        boxShadow: `0 10px 15px -3px ${colors.PRIMARY}40`,
+                      },
+                      "&.Mui-disabled": {
+                        bgcolor: colors.PRIMARY,
+                        opacity: 0.7,
+                        color: "white",
+                      },
+                    }}
+                  >
+                    {isLoading ? "Creating Account..." : "Sign Up"}
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
           </Paper>
         </form>
       </Container>

@@ -1,15 +1,17 @@
 "use client";
 import { useAppTheme } from "@/context/ThemeContext";
-import { Box, Card, CardContent, Chip, Grid, Typography, CircularProgress, Stack } from "@mui/material";
+import { Box, Card, CardContent, Chip, Grid, Typography, CircularProgress, Stack, Button } from "@mui/material";
 import { CalendarToday, Public, EmojiEvents } from "@mui/icons-material";
 import Breadcrumb from "@/components/widgets/Breadcrumb";
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { contestControllers } from "@/api/contestControllers";
 import dayjs from "dayjs";
 import { montserrat } from "@/utils/fonts";
 
 const Contests = () => {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const [contests, setContests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,21 +74,22 @@ const Contests = () => {
               {/* Decorative Header Banner */}
               <Box 
                 sx={{ 
-                  height: 120, 
+                  height: { xs: 100, md: 120 }, 
                   background: `linear-gradient(135deg, ${colors.PRIMARY} 0%, #1e293b 100%)`,
                   display: "flex",
                   alignItems: "center",
-                  px: 4
+                  px: { xs: 2, md: 4 }
                 }}
               >
-                <EmojiEvents sx={{ color: "rgba(255,255,255,0.2)", fontSize: 80, mr: 2 }} />
+                <EmojiEvents sx={{ color: "rgba(255,255,255,0.2)", fontSize: { xs: 50, md: 80 }, mr: { xs: 1, md: 2 } }} />
                 <Typography 
                   variant="h3" 
                   sx={{ 
                     color: "white", 
                     fontWeight: 800, 
                     fontFamily: montserrat.style.fontFamily,
-                    letterSpacing: "-0.5px"
+                    letterSpacing: "-0.5px",
+                    fontSize: { xs: "1.5rem", sm: "2rem", md: "3rem" }
                   }}
                 >
                   {contest.name}
@@ -119,6 +122,27 @@ const Contests = () => {
                     >
                       {contest.description}
                     </Typography>
+
+                    <Button
+                      variant="contained"
+                      onClick={() => router.push('/entries/add')}
+                      sx={{
+                        backgroundColor: colors.PRIMARY,
+                        color: "#fff",
+                        px: 4,
+                        py: 1.5,
+                        width: { xs: "100%", sm: "auto" },
+                        borderRadius: 2,
+                        textTransform: "none",
+                        fontWeight: 600,
+                        "&:hover": {
+                          backgroundColor: colors.PRIMARY,
+                          opacity: 0.9,
+                        }
+                      }}
+                    >
+                      Submit Your Entry
+                    </Button>
                   </Grid>
 
                   <Grid size={{xs:12, md:4}}>

@@ -293,26 +293,43 @@ const Entries = () => {
                     <TableCell>
                       {(() => {
                         const displayStatus = entry.status || "Pending";
-                        const isEvaluatedBackend = displayStatus.toLowerCase() === "evaluated" || (entry.score !== undefined && entry.score !== null && entry.score > 0);
+                        let finalStatus = displayStatus;
+                        if (["pending", "approved"].includes(displayStatus.toLowerCase()) && entry.score !== undefined && entry.score !== null && entry.score > 0) {
+                          finalStatus = "evaluated";
+                        }
 
                         const getStatusColor = (status: string) => {
                           const lower = status.toLowerCase();
                           if (lower === "draft") return { bg: "#f1f5f9", text: "#475569" };      // Slate
                           if (lower === "pending") return { bg: "#fef3c7", text: "#b45309" };    // Amber
                           if (lower === "approved") return { bg: "#d1fae5", text: "#047857" };   // Emerald
-                          if (lower === "rejected") return { bg: "#fee2e2", text: "#b91c1c" };   // Red
-                          if (lower === "evaluated") return { bg: "#e0f2fe", text: "#0369a1" };  // Sky Blue
+                          if (lower === "rejected" || lower === "reject") return { bg: "#fee2e2", text: "#b91c1c" };   // Red
+                          if (lower === "evaluated" || lower === "evaluate") return { bg: "#e0f2fe", text: "#0369a1" };  // Sky Blue
                           if (lower === "semifinal") return { bg: "#f3e8ff", text: "#6b21a8" };  // Purple
                           if (lower === "final") return { bg: "#fce7f3", text: "#be185d" };      // Pink
                           if (lower === "winner") return { bg: "#fef08a", text: "#a16207" };     // Gold
                           return { bg: "#f8fafc", text: "#64748b" };
                         };
 
-                        const statusColors = getStatusColor(isEvaluatedBackend ? "evaluated" : displayStatus);
+                        const statusColors = getStatusColor(finalStatus);
                         
-                        let uiStatus = displayStatus;
-                        if (isEvaluatedBackend) uiStatus = "Evaluated";
-                        else if (displayStatus.toLowerCase() === "approved") uiStatus = "Moderate";
+                        const getMappedStatus = (status: string) => {
+                          if (!status) return "Pending";
+                          switch (status.toLowerCase()) {
+                            case 'pending': return 'Pending';
+                            case 'approved': return 'Moderate';
+                            case 'evaluate': 
+                            case 'evaluated': return 'Evaluated';
+                            case 'semifinal': return 'Semifinalist';
+                            case 'final': return 'Finalist';
+                            case 'winner': return 'Winner';
+                            case 'reject': 
+                            case 'rejected': return 'Rejected';
+                            case 'draft': return 'Draft';
+                            default: return status.charAt(0).toUpperCase() + status.slice(1);
+                          }
+                        };
+                        let uiStatus = getMappedStatus(finalStatus);
 
                         return (
                           <Chip 

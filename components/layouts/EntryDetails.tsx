@@ -452,16 +452,39 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
                   return entryTitle;
                 })()}
               </Typography>
-              <Chip 
-                label={entry.status?.toLowerCase() === "approved" ? "Moderate" : entry.status?.toLowerCase() === "evaluated" ? "Evaluated" : (entry.status || "Pending")}
-                sx={{ 
-                  bgcolor: entry.status?.toLowerCase() === "approved" ? "#E6F4EA" : entry.status?.toLowerCase() === "evaluated" ? "#e0e7ff" : entry.status?.toLowerCase() === "rejected" ? "#FCE8E6" : "#FEF7E0",
-                  color: entry.status?.toLowerCase() === "approved" ? "#137333" : entry.status?.toLowerCase() === "evaluated" ? "#3730a3" : entry.status?.toLowerCase() === "rejected" ? "#C5221F" : "#B06000",
-                  fontWeight: 600,
-                  textTransform: 'capitalize',
-                  border: "none",
-                }}
-              />
+              {(() => {
+                const getMappedStatus = (status: string) => {
+                  if (!status) return "Pending";
+                  switch (status.toLowerCase()) {
+                    case 'pending': return 'Pending';
+                    case 'approved': return 'Moderate';
+                    case 'evaluate': 
+                    case 'evaluated': return 'Evaluated';
+                    case 'semifinal': return 'Semifinalist';
+                    case 'final': return 'Finalist';
+                    case 'winner': return 'Winner';
+                    case 'reject': 
+                    case 'rejected': return 'Rejected';
+                    case 'draft': return 'Draft';
+                    default: return status.charAt(0).toUpperCase() + status.slice(1);
+                  }
+                };
+
+                const mappedLabel = getMappedStatus(entry.status);
+
+                return (
+                  <Chip 
+                    label={mappedLabel}
+                    sx={{ 
+                      bgcolor: entry.status?.toLowerCase() === "approved" ? "#E6F4EA" : entry.status?.toLowerCase() === "evaluated" || entry.status?.toLowerCase() === "evaluate" ? "#e0e7ff" : entry.status?.toLowerCase() === "rejected" || entry.status?.toLowerCase() === "reject" ? "#FCE8E6" : "#FEF7E0",
+                      color: entry.status?.toLowerCase() === "approved" ? "#137333" : entry.status?.toLowerCase() === "evaluated" || entry.status?.toLowerCase() === "evaluate" ? "#3730a3" : entry.status?.toLowerCase() === "rejected" || entry.status?.toLowerCase() === "reject" ? "#C5221F" : "#B06000",
+                      fontWeight: 600,
+                      textTransform: 'capitalize',
+                      border: "none",
+                    }}
+                  />
+                );
+              })()}
               
               {(entry.score !== undefined && entry.score !== null) && (
                 <Chip

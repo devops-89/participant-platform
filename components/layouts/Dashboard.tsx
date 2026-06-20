@@ -13,7 +13,7 @@ const Dashboard = () => {
   const [statsData, setStatsData] = useState({
     activeContests: 0,
     totalEntries: 0,
-    approvedEntries: 0,
+    latestEntryStatus: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +23,7 @@ const Dashboard = () => {
         setLoading(true);
         let contestCount = 0;
         let entriesCount = 0;
-        let approvedCount = 0;
+        let latestStatus = "";
 
         try {
           const contestRes = await contestControllers.getContest();
@@ -87,7 +87,9 @@ const Dashboard = () => {
             }
             
             entriesCount = entries.length;
-            approvedCount = entries.filter((e: any) => e.status?.toLowerCase() === "approved").length;
+            if (entries.length > 0) {
+              latestStatus = entries[0].status || "";
+            }
           } catch(e) {
             console.error("Failed to fetch entries", e);
           }
@@ -96,7 +98,7 @@ const Dashboard = () => {
         setStatsData({
           activeContests: contestCount,
           totalEntries: entriesCount,
-          approvedEntries: approvedCount
+          latestEntryStatus: latestStatus
         });
       } catch (error) {
         console.error("Dashboard data fetch error", error);
@@ -108,10 +110,25 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
+  const getMappedStatus = (status: string) => {
+    if (!status) return "N/A";
+    switch (status.toLowerCase()) {
+      case 'pending': return 'Pending';
+      case 'approved': return 'Moderate';
+      case 'evaluate': return 'Evaluated';
+      case 'semifinal': return 'Semifinalist';
+      case 'final': return 'Finalist';
+      case 'winner': return 'Winner';
+      case 'reject': return 'Rejected';
+      case 'draft': return 'Draft';
+      default: return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  };
+
   const stats = [
     { title: "Active Contests", value: loading ? "..." : statsData.activeContests.toString(), icon: EmojiEvents, color: "#4ade80" },
     { title: "My Entries", value: loading ? "..." : statsData.totalEntries.toString(), icon: UploadFile, color: "#60a5fa" },
-    { title: "Approved Entries", value: loading ? "..." : statsData.approvedEntries.toString(), icon: CheckCircleOutlined, color: "#f472b6" },
+    { title: "Entry Status", value: loading ? "..." : getMappedStatus(statsData.latestEntryStatus), icon: CheckCircleOutlined, color: "#f472b6" },
   ];
 
   return (
