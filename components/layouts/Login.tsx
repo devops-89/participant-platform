@@ -49,15 +49,6 @@ const Login = () => {
         
         // Map generic invalid credentials to a clearer message for the user
         const displayMessage = lowerMsg.includes("credential") ? "Incorrect email or password" : message;
-
-        if (lowerMsg.includes("credential")) {
-          setFieldError("email", displayMessage);
-          setFieldError("password", displayMessage);
-        } else if (lowerMsg.includes("password")) {
-          setFieldError("password", displayMessage);
-        } else if (lowerMsg.includes("email") || lowerMsg.includes("user") || lowerMsg.includes("account") || lowerMsg.includes("not found")) {
-          setFieldError("email", displayMessage);
-        }
         
         showSnackbar(displayMessage, "error");
       }
@@ -142,7 +133,7 @@ const Login = () => {
                 onBlur={formik.handleBlur}
                 error={formik.touched.email && Boolean(formik.errors.email)}
                 helperText={formik.touched.email && formik.errors.email}
-                autoComplete="new-password"
+                autoComplete="off"
               />
               <TextField
                 fullWidth
@@ -175,7 +166,7 @@ const Login = () => {
                   formik.touched.password && Boolean(formik.errors.password)
                 }
                 helperText={formik.touched.password && formik.errors.password}
-                autoComplete="new-password"
+                autoComplete="off"
               />
 
               <Box

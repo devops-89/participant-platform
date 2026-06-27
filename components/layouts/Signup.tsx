@@ -144,6 +144,69 @@ export default function Signup() {
       
       if (field.type === "file_upload" || field.type === "file" || field.type === "image") {
         validator = Yup.mixed().nullable();
+
+        if (field.config?.maxSize) {
+          const maxSize = Number(field.config.maxSize) * 1024 * 1024;
+          validator = validator.test(
+            "fileSize",
+            `File size is too large (Max: ${field.config.maxSize}MB)`,
+            (value: any) => {
+              if (!value) return true;
+              if (value instanceof File) return value.size <= maxSize;
+              return true;
+            }
+          );
+        }
+
+        if (field.config?.allowedExtensions) {
+          const allowed = typeof field.config.allowedExtensions === 'string' 
+            ? field.config.allowedExtensions.split(",").map((e: string) => e.trim().toLowerCase()) 
+            : field.config.allowedExtensions;
+          validator = validator.test(
+            "fileType",
+            `Unsupported file type (Allowed: ${allowed.join(", ")})`,
+            (value: any) => {
+              if (!value) return true;
+              if (value instanceof File) {
+                const extMatch = value.name.match(/\.[0-9a-z]+$/i);
+                const extension = extMatch ? extMatch[0].toLowerCase() : "";
+                return allowed.includes(extension);
+              }
+              return true;
+            }
+          );
+        }
+      }
+
+      const isPassword = field.type === "password" || field.label.toLowerCase().includes("password");
+
+      if (isPassword) {
+        validator = validator
+          .min(8, "Password must be at least 8 characters")
+          .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+          .matches(/[0-9]/, "Password must include at least one number")
+          .matches(
+            /[!@#$%^&*(),.?":{}|<>]/,
+            "Password must include at least one special character"
+          );
+      }
+
+      if (
+        field.label.toLowerCase() === "name" ||
+        field.label.toLowerCase() === "first name" ||
+        field.label.toLowerCase() === "last name"
+      ) {
+        validator = validator.matches(
+          /^[A-Za-z\s]+$/,
+          "Only alphabets and spaces are allowed"
+        );
+      }
+
+      if (field.label.toLowerCase() === "innovation title") {
+        validator = validator.matches(
+          /^[A-Za-z0-9\s]+$/,
+          "Only letters, numbers, and spaces are allowed"
+        );
       }
 
       if (field.required) {
@@ -1169,7 +1232,7 @@ export default function Signup() {
                             : field.type || "text"
                         }
                         variant="outlined"
-                        autoComplete="new-password"
+                        autoComplete="off"
                         sx={textFieldStyles}
                         value={formik.values[field.id] || ""}
                         onChange={formik.handleChange}
@@ -1248,9 +1311,10 @@ export default function Signup() {
                       isLoadingTemplate ||
                       !formik.values.contestId
                     }
+                    fullWidth
                     sx={{
                       py: 1.5,
-                      width: { xs: "100%", sm: "200px" },
+                      width: "100%",
                       bgcolor: colors.PRIMARY,
                       color: "white",
                       fontWeight: 600,

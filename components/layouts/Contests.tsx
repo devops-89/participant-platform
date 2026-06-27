@@ -24,7 +24,9 @@ const Contests = () => {
         const parsedUser = JSON.parse(userStr);
         setUser(parsedUser);
         if (parsedUser?.participants && Array.isArray(parsedUser.participants)) {
-          const userContests = parsedUser.participants.map((p: any) => p.contest).filter(Boolean);
+          const userContests = parsedUser.participants
+            .map((p: any) => p.contest)
+            .filter((c: any) => c && c.status === "Published");
           setContests(userContests);
         }
       }
@@ -38,7 +40,9 @@ const Contests = () => {
           setUser(res.data);
           localStorage.setItem("user", JSON.stringify(res.data));
           if (res.data.participants && Array.isArray(res.data.participants)) {
-             const userContests = res.data.participants.map((p: any) => p.contest).filter(Boolean);
+             const userContests = res.data.participants
+               .map((p: any) => p.contest)
+               .filter((c: any) => c && c.status === "Published");
              setContests(userContests);
           }
         }
@@ -83,7 +87,7 @@ const Contests = () => {
       ) : contests.length === 0 ? (
         <Card sx={{ p: 6, textAlign: "center", borderRadius: 4, boxShadow: "0px 10px 30px rgba(0,0,0,0.05)" }}>
           <Typography variant="h6" sx={{ color: colors.TEXT_SECONDARY }}>
-            No contests available at the moment.
+            You are not enrolled in any active contests yet. Stay tuned for upcoming events!
           </Typography>
         </Card>
       ) : (
