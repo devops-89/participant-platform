@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, IconButton, Tooltip, CircularProgress, Avatar } from "@mui/material";
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, IconButton, Tooltip, CircularProgress, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
 import { useAppTheme } from "@/context/ThemeContext";
 import { CloudUpload, Visibility, Edit } from "@mui/icons-material";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/components/widgets/Breadcrumb";
 import { entryControllers } from "@/api/entryControllers";
 import { contestControllers } from "@/api/contestControllers";
+import { AuthControllers } from "@/api/authControllers";
 import { useSnackbar } from "@/context/SnackbarContext";
 import moment from "moment";
 
@@ -21,108 +22,56 @@ const Entries = () => {
   const [userFields, setUserFields] = useState<any[]>([]);
   const [contestTitle, setContestTitle] = useState<string>("Contest");
   const [loading, setLoading] = useState(true);
+  const [isBanned, setIsBanned] = useState(false);
+  const [activeContests, setActiveContests] = useState<any[]>([]);
+  const [contestPopupOpen, setContestPopupOpen] = useState(false);
+  const [selectedContestIdPopup, setSelectedContestIdPopup] = useState<string>("");
 
   useEffect(() => {
     const fetchEntries = async () => {
       try {
         setLoading(true);
+        let userObj: any = null;
         
-        let actualContestId = null;
-        let fetchedContestTitle = "Contest";
-        let templateFieldsFromApi: any[] = [];
-        let userFieldsFromApi: any[] = [];
-        
-        let hasLocalContestData = false;
         try {
-          const userStr = localStorage.getItem("user");
-          if (userStr) {
-            const user = JSON.parse(userStr);
-            if (user?.contests && user.contests.length > 0) {
-              const contest = user.contests[0];
-              actualContestId = contest.id;
-              fetchedContestTitle = contest.title || contest.name || "Contest";
-              
-              if (contest.entryLevelTemplate?.schema?.fields) {
-                templateFieldsFromApi = contest.entryLevelTemplate.schema.fields;
+          const meRes = await AuthControllers.getParticipants();
+          if (meRes?.data) {
+            userObj = meRes.data;
+            localStorage.setItem("user", JSON.stringify(userObj));
+          }
+        } catch (e) {
+          console.error("Failed to fetch /me", e);
+        }
+
+        if (!userObj) {
+          try {
+            const userStr = localStorage.getItem("user");
+            if (userStr) userObj = JSON.parse(userStr);
+          } catch(e) {}
+        }
+
+        if (userObj) {
+          if (userObj.status === "Banned" || userObj.status === "banned") {
+            setIsBanned(true);
+          }
+          if (userObj.participants && userObj.participants.length > 0) {
+            const active = userObj.participants.filter((p: any) => p.status !== "Banned" && p.status !== "banned" && p.status !== "rejected" && p.status !== "Rejected" && p.contest);
+            setActiveContests(active.map((p: any) => p.contest));
+
+            const allEntries = userObj.participants.flatMap((p: any) => {
+              if (p.entries && Array.isArray(p.entries)) {
+                return p.entries.map((entry: any) => ({
+                  ...entry,
+                  contest: p.contest,
+                  participant: p
+                }));
               }
-              if (contest.userLevelTemplate?.schema?.fields) {
-                userFieldsFromApi = contest.userLevelTemplate.schema.fields;
-              }
-              hasLocalContestData = true;
-            } else if (user?.contestId) {
-              actualContestId = user.contestId;
-            }
-          }
-        } catch(e) {
-          console.error("Error reading user from localStorage", e);
-        }
+              return [];
+            });
 
-        if (!hasLocalContestData) {
-          const contestRes = await contestControllers.getContest();
-          
-          if (contestRes?.data?.docs && contestRes.data.docs.length > 0) {
-            actualContestId = contestRes.data.docs[0].id;
-            fetchedContestTitle = contestRes.data.docs[0].title || contestRes.data.docs[0].name || "Contest";
-          } else if (Array.isArray(contestRes?.data) && contestRes.data.length > 0) {
-            actualContestId = contestRes.data[0].id;
-            fetchedContestTitle = contestRes.data[0].title || contestRes.data[0].name || "Contest";
-          } else if (Array.isArray(contestRes) && contestRes.length > 0) {
-            actualContestId = contestRes[0].id;
-            fetchedContestTitle = contestRes[0].title || contestRes[0].name || "Contest";
-          } else if (contestRes?.data?.id) {
-            actualContestId = contestRes.data.id;
-            fetchedContestTitle = contestRes.data.title || contestRes.data.name || "Contest";
-          } else if (contestRes?.id) {
-            actualContestId = contestRes.id;
-            fetchedContestTitle = contestRes.title || contestRes.name || "Contest";
+            setEntries(allEntries);
           }
         }
-
-        if (!actualContestId) {
-          setLoading(false);
-          return; // Still no contest found
-        }
-
-        let res;
-        if (!hasLocalContestData || templateFieldsFromApi.length === 0 || userFieldsFromApi.length === 0) {
-          const [contestDetailsRes, entriesRes] = await Promise.all([
-            contestControllers.getContestDetails(actualContestId),
-            entryControllers.getAllEntries(actualContestId)
-          ]);
-          res = entriesRes;
-
-          if (contestDetailsRes?.data?.entryLevelTemplate?.schema?.fields) {
-            templateFieldsFromApi = contestDetailsRes.data.entryLevelTemplate.schema.fields;
-          } else if (contestDetailsRes?.entryLevelTemplate?.schema?.fields) {
-            templateFieldsFromApi = contestDetailsRes.entryLevelTemplate.schema.fields;
-          }
-  
-          if (contestDetailsRes?.data?.userLevelTemplate?.schema?.fields) {
-            userFieldsFromApi = contestDetailsRes.data.userLevelTemplate.schema.fields;
-          } else if (contestDetailsRes?.userLevelTemplate?.schema?.fields) {
-            userFieldsFromApi = contestDetailsRes.userLevelTemplate.schema.fields;
-          }
-        } else {
-          res = await entryControllers.getAllEntries(actualContestId);
-        }
-
-        setTemplateFields(templateFieldsFromApi);
-        setUserFields(userFieldsFromApi);
-        setContestTitle(fetchedContestTitle);
-
-        let dataList = [];
-        if (Array.isArray(res?.data)) {
-          dataList = res.data;
-        } else if (Array.isArray(res?.data?.data)) {
-          dataList = res.data.data;
-        } else if (res?.data?.docs) {
-          dataList = res.data.docs;
-        } else if (res?.docs) {
-          dataList = res.docs;
-        }
-
-        setEntries(dataList);
-
       } catch (error: any) {
         console.error("Failed to fetch entries:", error);
         showSnackbar(error?.response?.data?.message || "Failed to load entries.", "error");
@@ -160,17 +109,37 @@ const Entries = () => {
             { title: "Entries", href: "/entries" },
           ]}
         />
-        <Button 
-          variant="contained" 
-          startIcon={<CloudUpload />}
-          onClick={() => router.push("/entries/add")}
-          sx={{ bgcolor: colors.PRIMARY, textTransform: 'none', borderRadius: 2 }}
-        >
-          Submit New Entry
-        </Button>
+        {!isBanned && (
+          <Button 
+            variant="contained" 
+            startIcon={<CloudUpload />}
+            onClick={() => {
+              if (activeContests.length > 1) {
+                setContestPopupOpen(true);
+              } else if (activeContests.length === 1) {
+                router.push(`/entries/add?contestId=${activeContests[0].id}`);
+              } else {
+                router.push("/entries/add");
+              }
+            }}
+            sx={{ bgcolor: colors.PRIMARY, textTransform: 'none', borderRadius: 2 }}
+          >
+            Submit New Entry
+          </Button>
+        )}
       </Box>
 
-      <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${colors.BORDER}`, borderRadius: 3 }}>
+      {isBanned ? (
+        <Paper elevation={0} sx={{ p: 5, textAlign: "center", border: `1px solid ${colors.BORDER}`, borderRadius: 3, bgcolor: "#fee2e2" }}>
+          <Typography variant="h6" sx={{ color: "#991b1b", fontWeight: 600 }}>
+            You have been banned from participating in this contest.
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#7f1d1d", mt: 1 }}>
+            You cannot view or submit any entries.
+          </Typography>
+        </Paper>
+      ) : (
+        <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${colors.BORDER}`, borderRadius: 3 }}>
         <Table>
           <TableHead sx={{ bgcolor: "rgba(0,0,0,0.02)" }}>
             <TableRow>
@@ -198,67 +167,58 @@ const Entries = () => {
             ) : (
               entries.map((entry) => {
                 const subData = entry?.submission?.data || {};
+                const contest = entry?.contest || {};
                 
-                const entryTitleField = templateFields?.find((f: any) => {
+                let currentTemplateFields: any[] = [];
+                let currentUserFields: any[] = [];
+
+                if (contest.entryLevelTemplate?.schema?.fields) {
+                  currentTemplateFields = contest.entryLevelTemplate.schema.fields;
+                }
+                if (contest.userLevelTemplate?.schema?.fields) {
+                  currentUserFields = contest.userLevelTemplate.schema.fields;
+                }
+                
+                const entryTitleField = currentTemplateFields.find((f: any) => {
                   const l = f.label?.toLowerCase() || "";
                   return l.includes("title") || l.includes("project") || l.includes("name");
                 });
                 const entryTitle = entryTitleField ? (subData[entryTitleField.label] || subData[entryTitleField.id]) : (subData.ho1p00z0q || subData["Innovation Title"]);
 
-                const firstNameField = userFields.find((f: any) => {
-                  const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
-                  return l.includes("firstname") || l === "first";
-                });
-                const lastNameField = userFields.find((f: any) => {
-                  const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
-                  return l.includes("lastname") || l === "last";
-                });
-                const fullNameField = userFields.find((f: any) => {
-                  const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
-                  return l.includes("fullname") || l === "name" || (l.includes("name") && !l.includes("first") && !l.includes("last"));
-                });
-
-                const rawAuthorData = entry?.participant?.submission?.data;
-                const authorData = rawAuthorData?.data || rawAuthorData || (entry?.participant as any)?.data || (entry?.participant as any)?.participant_profile_data || {};
-                let authorName = "";
-
-                if (firstNameField || lastNameField) {
-                  const first = firstNameField ? (authorData[firstNameField.label] || authorData[firstNameField.id]) : "";
-                  const last = lastNameField ? (authorData[lastNameField.label] || authorData[lastNameField.id]) : "";
-                  authorName = `${first || ""} ${last || ""}`.trim();
-                }
-                
-                if (!authorName && fullNameField) {
-                  authorName = authorData[fullNameField.label] || authorData[fullNameField.id];
-                }
-
-                if (!authorName) {
-                  const fallback = userFields.find((f: any) => f.label?.toLowerCase().includes("name"));
-                  if (fallback && (authorData[fallback.label] || authorData[fallback.id])) {
-                    authorName = authorData[fallback.label] || authorData[fallback.id];
-                  } else {
-                    authorName = authorData.yg9snrxlh;
+                let authorName = "Unknown";
+                try {
+                  const uStr = localStorage.getItem("user");
+                  if (uStr) {
+                    const u = JSON.parse(uStr);
+                    authorName = u.fullName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown";
                   }
-                }
+                } catch(e) {}
 
-                const thumbnailField = templateFields?.find((f: any) => f.label?.toLowerCase().includes("thumbnail"));
+                const thumbnailField = currentTemplateFields.find((f: any) => f.label?.toLowerCase().includes("thumbnail") || f.label?.toLowerCase().includes("image"));
                 let thumbnailUrl = "";
                 if (thumbnailField) {
                   thumbnailUrl = subData[`${thumbnailField.id}_downloadUrl`] || subData[`${thumbnailField.label}_downloadUrl`] || subData[thumbnailField.id] || subData[thumbnailField.label] || "";
                 }
                 
                 if (!thumbnailUrl) {
-                  const downloadUrlKey = Object.keys(subData).find((key) => key.endsWith("_downloadUrl"));
-                  thumbnailUrl = downloadUrlKey ? subData[downloadUrlKey] : "";
-                }
-                
-                if (!thumbnailUrl) {
-                  const imageUrlKey = Object.keys(subData).find((key) => {
+                  const imageKeys = Object.keys(subData).filter((key) => {
                     if (key === "status" || key.endsWith("_downloadUrl")) return false;
                     const val = subData[key];
                     return typeof val === "string" && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(val);
                   });
-                  if (imageUrlKey) thumbnailUrl = subData[imageUrlKey];
+                  if (imageKeys.length > 0) {
+                    thumbnailUrl = subData[`${imageKeys[0]}_downloadUrl`] || subData[imageKeys[0]];
+                  }
+                }
+
+                // Fallback to any download url if it looks like an image URL
+                if (!thumbnailUrl) {
+                  const downloadUrlKey = Object.keys(subData).find((key) => {
+                     if (!key.endsWith("_downloadUrl")) return false;
+                     const val = subData[key];
+                     return typeof val === "string" && /\.(png|jpe?g|gif|webp|svg|bmp)/i.test(val);
+                  });
+                  thumbnailUrl = downloadUrlKey ? subData[downloadUrlKey] : "";
                 }
 
                 return (
@@ -370,6 +330,42 @@ const Entries = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      )}
+
+      <Dialog open={contestPopupOpen} onClose={() => setContestPopupOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Select Contest</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+            Please select the contest you want to submit an entry for.
+          </Typography>
+          <FormControl fullWidth size="small">
+            <InputLabel id="select-contest-popup-label">Select Contest</InputLabel>
+            <Select
+              labelId="select-contest-popup-label"
+              value={selectedContestIdPopup}
+              label="Select Contest"
+              onChange={(e) => setSelectedContestIdPopup(e.target.value as string)}
+            >
+              {activeContests.map((c: any) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name || c.title || "Contest"}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setContestPopupOpen(false)} color="inherit">Cancel</Button>
+          <Button 
+            onClick={() => router.push(`/entries/add?contestId=${selectedContestIdPopup}`)} 
+            color="primary" 
+            variant="contained"
+            disabled={!selectedContestIdPopup}
+          >
+            Proceed
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

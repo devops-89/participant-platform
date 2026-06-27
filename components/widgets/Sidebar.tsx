@@ -53,7 +53,7 @@ const Sidebar = () => {
       >
         <Box sx={{ textAlign: "center", pt: 2 }}>
           <Box sx={{ borderBottom: "1px solid #d7d7d7", pb: 2 }}>
-            <Typography variant="h6">Participant Platform</Typography>
+            <Typography variant="h6">Ignite Innovation</Typography>
           </Box>
           <Box sx={{ p: 2 }}>
             <List component="nav">

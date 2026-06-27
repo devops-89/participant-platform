@@ -129,7 +129,12 @@ const Dashboard = () => {
     { title: "Active Contests", value: loading ? "..." : statsData.activeContests.toString(), icon: EmojiEvents, color: "#4ade80" },
     { title: "My Entries", value: loading ? "..." : statsData.totalEntries.toString(), icon: UploadFile, color: "#60a5fa" },
     { title: "Entry Status", value: loading ? "..." : getMappedStatus(statsData.latestEntryStatus), icon: CheckCircleOutlined, color: "#f472b6" },
-  ];
+  ].filter(stat => {
+    if (stat.title === "Entry Status" && !loading && !statsData.latestEntryStatus) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <Box sx={{ p: 4, mt: 8 }}>

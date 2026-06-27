@@ -8,29 +8,58 @@ import { useRouter } from "next/navigation";
 import { contestControllers } from "@/api/contestControllers";
 import dayjs from "dayjs";
 import { montserrat } from "@/utils/fonts";
+import { AuthControllers } from "@/api/authControllers";
 
 const Contests = () => {
   const { colors } = useAppTheme();
   const router = useRouter();
   const [contests, setContests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const fetchContests = async () => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const parsedUser = JSON.parse(userStr);
+        setUser(parsedUser);
+        if (parsedUser?.participants && Array.isArray(parsedUser.participants)) {
+          const userContests = parsedUser.participants.map((p: any) => p.contest).filter(Boolean);
+          setContests(userContests);
+        }
+      }
+    } catch(e) {}
+    
+    const fetchMe = async () => {
       try {
         setLoading(true);
-        const res = await contestControllers.getContest();
-        if (res?.data?.docs) {
-          setContests(res.data.docs);
+        const res = await AuthControllers.getParticipants();
+        if (res?.data) {
+          setUser(res.data);
+          localStorage.setItem("user", JSON.stringify(res.data));
+          if (res.data.participants && Array.isArray(res.data.participants)) {
+             const userContests = res.data.participants.map((p: any) => p.contest).filter(Boolean);
+             setContests(userContests);
+          }
         }
-      } catch (error) {
-        console.error("Failed to fetch contests:", error);
+      } catch (err) {
+        console.error("Failed to fetch user:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchContests();
+    fetchMe();
   }, []);
+
+  const isBanned = (contestId: string) => {
+    if (!user) return false;
+    if (user.status === "Banned" || user.status === "banned") return true;
+    if (user.participants && Array.isArray(user.participants)) {
+      const c = user.participants.find((x: any) => x.contest?.id === contestId || x.contest_id === contestId);
+      if (c && (c.status === "Banned" || c.status === "banned")) return true;
+    }
+    return false;
+  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, mt: { xs: 8, md: 10 }, minHeight: "100vh", backgroundColor: "#f8fafc" }}>
@@ -123,26 +152,34 @@ const Contests = () => {
                       {contest.description}
                     </Typography>
 
-                    <Button
-                      variant="contained"
-                      onClick={() => router.push('/entries/add')}
-                      sx={{
-                        backgroundColor: colors.PRIMARY,
-                        color: "#fff",
-                        px: 4,
-                        py: 1.5,
-                        width: { xs: "100%", sm: "auto" },
-                        borderRadius: 2,
-                        textTransform: "none",
-                        fontWeight: 600,
-                        "&:hover": {
+                    {isBanned(contest.id) ? (
+                      <Chip 
+                        label="Banned from Contest" 
+                        color="error" 
+                        sx={{ fontWeight: 'bold', fontSize: '1rem', p: 1 }} 
+                      />
+                    ) : (
+                      <Button
+                        variant="contained"
+                        onClick={() => router.push(`/entries/add?contestId=${contest.id}`)}
+                        sx={{
                           backgroundColor: colors.PRIMARY,
-                          opacity: 0.9,
-                        }
-                      }}
-                    >
-                      Submit Your Entry
-                    </Button>
+                          color: "#fff",
+                          px: 4,
+                          py: 1.5,
+                          width: { xs: "100%", sm: "auto" },
+                          borderRadius: 2,
+                          textTransform: "none",
+                          fontWeight: 600,
+                          "&:hover": {
+                            backgroundColor: colors.PRIMARY,
+                            opacity: 0.9,
+                          }
+                        }}
+                      >
+                        Submit Your Entry
+                      </Button>
+                    )}
                   </Grid>
 
                   <Grid size={{xs:12, md:4}}>

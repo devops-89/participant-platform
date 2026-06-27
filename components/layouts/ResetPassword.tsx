@@ -1,69 +1,67 @@
 "use client";
 
 import { useAppTheme } from "@/context/ThemeContext";
-import { useLogin } from "@/hooks/auth/useLogin";
+import { useResetPassword } from "@/hooks/auth/useResetPassword";
+import { ResetPassword_Validation } from "@/utils/validation";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
-import { Login_Validation } from "@/utils/validation";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
-  Alert,
   Box,
   Button,
-  Collapse,
   Container,
   IconButton,
   InputAdornment,
-  Link,
   Paper,
   TextField,
   Typography,
 } from "@mui/material";
 import { useFormik } from "formik";
-import { useRouter } from "next/navigation";
-import React from "react";
+import { useSearchParams } from "next/navigation";
+import React, { Suspense } from "react";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
-const Login = () => {
-  const { colors, mode } = useAppTheme();
-  const router = useRouter();
+const ResetPasswordForm = () => {
+  const { colors } = useAppTheme();
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
+  const otp = searchParams.get("otp") || "";
   const [showPassword, setShowPassword] = React.useState(false);
-  const { showSnackbar } = useSnackbar();
-  const { isChecking } = useGuestGuard();
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  
 
-  const { login, isLoading, error: apiError } = useLogin();
+  const { showSnackbar } = useSnackbar();
+  const { resetPassword, isLoading, error: apiError } = useResetPassword();
+
+  const { isChecking } = useGuestGuard();
 
   const formik = useFormik({
     initialValues: {
-      email: "",
+      email: email,
+      otp: otp,
       password: "",
+      confirmPassword: "",
     },
-    validationSchema: Login_Validation,
-    onSubmit: async (values, { setFieldError }) => {
+    validationSchema: ResetPassword_Validation,
+    enableReinitialize: true,
+    onSubmit: async (values) => {
       try {
-        await login(values);
+        await resetPassword({
+          email: values.email,
+          otp: values.otp,
+          password: values.password
+        });
       } catch (err: any) {
-        const message = err.message || "An error occurred during login";
-        
-        const lowerMsg = message.toLowerCase();
-        
-        // Map generic invalid credentials to a clearer message for the user
-        const displayMessage = lowerMsg.includes("credential") ? "Incorrect email or password" : message;
-
-        if (lowerMsg.includes("credential")) {
-          setFieldError("email", displayMessage);
-          setFieldError("password", displayMessage);
-        } else if (lowerMsg.includes("password")) {
-          setFieldError("password", displayMessage);
-        } else if (lowerMsg.includes("email") || lowerMsg.includes("user") || lowerMsg.includes("account") || lowerMsg.includes("not found")) {
-          setFieldError("email", displayMessage);
-        }
-        
-        showSnackbar(displayMessage, "error");
+        showSnackbar(err?.response?.data?.message || err.message || "An error occurred", "error");
       }
     },
   });
 
+  React.useEffect(() => {
+    if (apiError) {
+      showSnackbar(apiError, "error");
+    }
+  }, [apiError, showSnackbar]);
 
 
   const textFieldStyles = {
@@ -94,7 +92,7 @@ const Login = () => {
       }}
     >
       <Container maxWidth="sm">
-        <form onSubmit={formik.handleSubmit} autoComplete="off">
+        <form onSubmit={formik.handleSubmit}>
           <Paper
             elevation={0}
             sx={{
@@ -117,41 +115,22 @@ const Login = () => {
                   letterSpacing: "-0.025em",
                 }}
               >
-                Welcome Back
+                Reset Password
               </Typography>
               <Typography variant="body1" sx={{ color: colors.TEXT_SECONDARY }}>
-                Enter your credentials to access your account
+                Enter the OTP sent to your email and set a new password.
               </Typography>
             </Box>
 
-            {/* Dummy fields to intercept browser autofill */}
-            <input type="email" name="fakeemailremembered" style={{ display: 'none' }} />
-            <input type="password" name="fakepasswordremembered" style={{ display: 'none' }} />
-
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
               <TextField
-                fullWidth
-                id="email"
-                label="Email Address"
-                name="email"
-                variant="outlined"
-                sx={textFieldStyles}
-
-                value={formik.values.email}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.email && Boolean(formik.errors.email)}
-                helperText={formik.touched.email && formik.errors.email}
-                autoComplete="new-password"
-              />
-              <TextField
+                margin="normal"
                 fullWidth
                 name="password"
-                label="Password"
+                label="New Password"
                 type={showPassword ? "text" : "password"}
                 id="password"
                 sx={textFieldStyles}
-
                 slotProps={{
                   input: {
                     endAdornment: (
@@ -175,43 +154,40 @@ const Login = () => {
                   formik.touched.password && Boolean(formik.errors.password)
                 }
                 helperText={formik.touched.password && formik.errors.password}
-                autoComplete="new-password"
               />
 
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mt: 1,
-                  mb: 2,
+              <TextField
+                margin="normal"
+                fullWidth
+                name="confirmPassword"
+                label="Confirm Password"
+                type={showConfirmPassword ? "text" : "password"}
+                id="confirmPassword"
+                sx={textFieldStyles}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          edge="end"
+                          sx={{ color: colors.TEXT_SECONDARY }}
+                        >
+                          {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
-              >
-                <Link
-                  href="/signup"
-                  variant="body2"
-                  sx={{
-                    color: colors.PRIMARY,
-                    textDecoration: "none",
-                    fontWeight: 600,
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  Don't have an account? Sign Up
-                </Link>
-                <Link
-                  href="/forgot-password"
-                  variant="body2"
-                  sx={{
-                    color: colors.PRIMARY,
-                    textDecoration: "none",
-                    fontWeight: 600,
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  Forgot password?
-                </Link>
-              </Box>
+                value={formik.values.confirmPassword}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                error={
+                  formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)
+                }
+                helperText={formik.touched.confirmPassword && formik.errors.confirmPassword}
+              />
 
               <Button
                 type="submit"
@@ -242,7 +218,7 @@ const Login = () => {
                   },
                 }}
               >
-                {isLoading ? "Signing In..." : "Sign In"}
+                {isLoading ? "Resetting..." : "Reset Password"}
               </Button>
             </Box>
           </Paper>
@@ -252,4 +228,12 @@ const Login = () => {
   );
 };
 
-export default Login;
+const ResetPassword = () => {
+  return (
+    <Suspense fallback={<Box>Loading...</Box>}>
+      <ResetPasswordForm />
+    </Suspense>
+  );
+};
+
+export default ResetPassword;

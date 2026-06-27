@@ -20,14 +20,18 @@ import {
   Switch,
   TextField,
   Typography,
+  IconButton,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import { FilePreview } from "@/components/widgets/FilePreview";
+import { useSnackbar } from "@/context/SnackbarContext";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
-import { MuiTelInput } from "mui-tel-input";
-import React from "react";
+import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import React, { useState, useMemo, useEffect } from "react";
 import * as Yup from "yup";
 
 import { countries } from "@/utils/constant";
@@ -47,18 +51,38 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   fields,
   onSubmit,
   submitLabel = "Submit",
-  initialData = {},
+  initialData,
   onDraft,
-  draftLabel = "Save as Draft",
+  draftLabel = "Save Draft",
 }) => {
-  const [isDrafting, setIsDrafting] = React.useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [stepHistory, setStepHistory] = useState<number[]>([]);
+  const { showSnackbar } = useSnackbar();
+
+  const pages = useMemo(() => {
+    const p: any[][] = [];
+    let current: any[] = [];
+    fields?.forEach((field: any) => {
+      if (field.type === FIELDS_TYPE.STEP_BREAK && !field.config?.isInline) {
+        if (current.length > 0) p.push(current);
+        current = [field];
+      } else {
+        current.push(field);
+      }
+    });
+    if (current.length > 0) p.push(current);
+    return p;
+  }, [fields]);
+
+  const currentPageFields = pages[activeStep] || [];
 
   const initialValues = React.useMemo(() => {
     return (
       fields?.reduce((acc: any, field: any) => {
-        const valById = initialData && initialData[field.id];
-        const valByLabel = initialData && field.label && initialData[field.label];
-        const valByTrimmed = initialData && field.label && initialData[field.label.trim()];
+        const valById = initialData?.[field.id];
+        const valByLabel = initialData?.[field.label];
+        const valByTrimmed = initialData?.[field.label?.trim()];
         
         const finalVal = valById !== undefined ? valById : (valByLabel !== undefined ? valByLabel : valByTrimmed);
 
@@ -85,14 +109,73 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
     );
   }, [fields, initialData]);
 
+  const handleNextStep = async () => {
+    const errors = await formik.validateForm();
+    const currentPageErrors = Object.keys(errors).filter((key) =>
+      currentPageFields.some((f: any) => f.id === key)
+    );
+
+    if (currentPageErrors.length > 0) {
+      currentPageErrors.forEach((key) => formik.setFieldTouched(key, true));
+      return;
+    }
+
+    let targetStepId: string | null = null;
+
+    for (const field of currentPageFields) {
+      if (["select", "radio", "autocomplete"].includes(field.type as any) && field.config?.enableBranching) {
+        const val = formik.values[field.id];
+        if (val && field.config.routing?.[val]) {
+          targetStepId = field.config.routing[val];
+        }
+      }
+    }
+
+    setStepHistory((prev) => [...prev, activeStep]);
+
+    if (targetStepId) {
+      const targetPageIndex = pages.findIndex(
+        (page) => page.length > 0 && page[0].type === FIELDS_TYPE.STEP_BREAK && page[0].id === targetStepId
+      );
+      if (targetPageIndex !== -1) {
+        setActiveStep(targetPageIndex);
+        return;
+      }
+    }
+
+    setActiveStep((prev) => prev + 1);
+  };
+
+  const handleBackStep = () => {
+    if (stepHistory.length > 0) {
+      const prevStep = stepHistory[stepHistory.length - 1];
+      setStepHistory((prev) => prev.slice(0, -1));
+      setActiveStep(prevStep);
+    } else {
+      setActiveStep((prev) => prev - 1);
+    }
+  };
+
   const validationSchema = React.useMemo(() => {
     const schemaFields: Record<string, Yup.AnySchema> = {};
     fields?.forEach((field: any) => {
       let validator: any;
       switch (field.type) {
         case FIELDS_TYPE.TEXTFIELD:
+        case FIELDS_TYPE.TEXTAREA:
         case FIELDS_TYPE.PASSWORD:
+          validator = Yup.string();
+          break;
         case FIELDS_TYPE.TEL_INPUT:
+          validator = Yup.string().test(
+            "isValidTel",
+            "Invalid phone number",
+            (value) => {
+              if (!value) return true;
+              return matchIsValidTel(value);
+            }
+          );
+          break;
         case FIELDS_TYPE.SELECT:
         case FIELDS_TYPE.RADIO:
         case FIELDS_TYPE.AUTOCOMPLETE:
@@ -108,7 +191,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
           validator = Yup.string();
           break;
         case FIELDS_TYPE.FILE_UPLOAD: {
-          let fileValidator = Yup.mixed();
+          let fileValidator = Yup.mixed().nullable();
           if (field.config?.maxSize) {
             const maxSize = Number(field.config.maxSize) * 1024 * 1024;
             fileValidator = fileValidator.test(
@@ -139,6 +222,15 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
               }
             );
           }
+          if (field.required || field.false) {
+            fileValidator = fileValidator.test(
+              "fileRequired",
+              `${field.label} is required`,
+              (value: any) => {
+                return value !== null && value !== undefined && value !== "";
+              }
+            );
+          }
           validator = fileValidator;
           break;
         }
@@ -158,10 +250,32 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
     return Yup.object(schemaFields);
   }, [fields]);
 
+  const visitedFields = useMemo(() => {
+    const visible: any[] = [];
+    [...stepHistory, activeStep].forEach(index => {
+      if (pages[index]) visible.push(...pages[index]);
+    });
+    return visible;
+  }, [stepHistory, activeStep, pages]);
+
   const formik = useFormik({
     initialValues,
-    validationSchema,
     enableReinitialize: true,
+    validate: (values) => {
+      const visibleFieldIds = new Set(visitedFields.map(f => f.id));
+      try {
+        validationSchema.validateSync(values, { abortEarly: false });
+        return {};
+      } catch (err: any) {
+        const errors: any = {};
+        err.inner.forEach((error: any) => {
+          if (visibleFieldIds.has(error.path)) {
+            errors[error.path] = error.message;
+          }
+        });
+        return errors;
+      }
+    },
     onSubmit: async (values) => {
       await onSubmit(values);
     },
@@ -170,11 +284,37 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Grid container spacing={4}>
-        {fields?.map((val: any) => (
-          <Grid key={val.id} size={{xs:12, md:6}}>
+        {currentPageFields?.map((val: any) => {
+          const isFullWidth = val.type === FIELDS_TYPE.TEXTBLOCK || val.type === FIELDS_TYPE.TEXTAREA || val.type === FIELDS_TYPE.SWITCH || val.type === FIELDS_TYPE.CHECKBOX || val.type === FIELDS_TYPE.RADIO;
+          if (val.type === FIELDS_TYPE.STEP_BREAK) {
+            return (
+              <Grid key={val.id} size={{ xs: 12 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: "primary.main" }}>
+                  {val.label}
+                </Typography>
+                {val.placeholder && (
+                  <Typography variant="body2" color="text.secondary">
+                    {val.placeholder}
+                  </Typography>
+                )}
+              </Grid>
+            );
+          }
+          return (
+          <Grid key={val.id} size={{xs:12, md: isFullWidth ? 12 : 6}}>
+            {val.type === FIELDS_TYPE.TEXTBLOCK && (
+              <Box sx={{ width: "100%", pb: 1 }}>
+                <Typography sx={{ fontFamily: montserrat.style.fontFamily, whiteSpace: "pre-wrap" }}>
+                  {val.label}
+                </Typography>
+              </Box>
+            )}
+
             {(val.type === FIELDS_TYPE.TEXTFIELD ||
+              val.type === FIELDS_TYPE.TEXTAREA ||
               val.type === FIELDS_TYPE.NUMBER_FIELD ||
               val.type === FIELDS_TYPE.PASSWORD) && (
+              <Box>
               <TextField
                 label={val.label || val.placeholder}
                 type={
@@ -184,6 +324,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     ? "password"
                     : "text"
                 }
+                multiline={val.type === FIELDS_TYPE.TEXTAREA}
+                minRows={val.type === FIELDS_TYPE.TEXTAREA ? 4 : undefined}
+                maxRows={val.type === FIELDS_TYPE.TEXTAREA ? 10 : undefined}
                 variant={val.variant || "outlined"}
                 placeholder={val.placeholder}
                 fullWidth
@@ -213,6 +356,12 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   },
                 }}
               />
+              {val.type === FIELDS_TYPE.TEXTAREA && val.config?.maxWords && (
+                <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.5, display: "block" }}>
+                  Max words: {val.config.maxWords}
+                </Typography>
+              )}
+              </Box>
             )}
 
             {val.type === FIELDS_TYPE.TEL_INPUT && (
@@ -282,95 +431,144 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
               </Box>
             )}
 
-            {val.type === FIELDS_TYPE.SELECT && (
-              <FormControl
-                fullWidth
-                variant={val.variant || "outlined"}
-                error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-              >
-                <InputLabel>{val.label || val.placeholder}</InputLabel>
-                <Select
-                  label={val.label || val.placeholder}
-                  name={val.id}
-                  value={formik.values[val.id] || ""}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  sx={{
-                    borderRadius: "10px",
-                    backgroundColor: "#ffffff",
-                    "& fieldset": { borderColor: "#e2e8f0" },
-                    "&:hover fieldset": { borderColor: "#cbd5e1" },
-                    "&.Mui-focused fieldset": { borderColor: "#6366f1" },
-                  }}
-                >
-                  {(val.options as string[])?.map((opt: string) => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {(formik.touched[val.id] && formik.errors[val.id]) || val.helperText ? (
-                  <FormHelperText>
-                    {(formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                      val.helperText}
-                  </FormHelperText>
-                ) : null}
-              </FormControl>
-            )}
-
-            {val.type === FIELDS_TYPE.AUTOCOMPLETE && (
-              <Autocomplete
-                options={(val.options as string[]) || []}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label={val.label || val.placeholder}
-                    variant={val.variant || "outlined"}
-                    placeholder={val.placeholder}
-                    error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                    helperText={
-                      (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                      val.helperText
-                    }
-                    required={val.required || val.false}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: "10px",
-                        backgroundColor: "#ffffff",
-                        "& fieldset": { borderColor: "#e2e8f0" },
-                        "&:hover fieldset": { borderColor: "#cbd5e1" },
-                        "&.Mui-focused fieldset": { borderColor: "#6366f1" },
-                      },
-                    }}
-                  />
-                )}
-                value={formik.values[val.id] || null}
-                onChange={(_, newValue) => formik.setFieldValue(val.id, newValue)}
-                onBlur={() => formik.setFieldTouched(val.id, true)}
-              />
-            )}
-
-            {val.type === FIELDS_TYPE.COUNTRY_SELECTOR &&
-              (val.options?.length ? (
-                <Autocomplete
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label={val.label || "Country Of Residence"}
-                      error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                      helperText={
-                        (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                        val.helperText
+            {(val.type === FIELDS_TYPE.AUTOCOMPLETE || val.type === FIELDS_TYPE.SELECT) && (
+              (() => {
+                const isCountryField = val.id === "country" || val.label?.toLowerCase().includes("country");
+                
+                if (isCountryField) {
+                  return (
+                    <Autocomplete
+                      id={val.id}
+                      options={countries}
+                      autoHighlight
+                      getOptionLabel={(option) => option.label}
+                      renderOption={(props, option) => {
+                        const { key, ...optionProps } = props;
+                        return (
+                          <Box
+                            key={key}
+                            component="li"
+                            sx={{ "& > img": { mr: 2, flexShrink: 0 } }}
+                            {...optionProps}
+                          >
+                            <img
+                              loading="lazy"
+                              width="20"
+                              srcSet={`https://flagcdn.com/w40/${option.code.toLowerCase()}.png 2x`}
+                              src={`https://flagcdn.com/w20/${option.code.toLowerCase()}.png`}
+                              alt=""
+                            />
+                            {option.label}
+                          </Box>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label={val.label || "Choose a country"}
+                          fullWidth
+                          error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
+                          helperText={
+                            (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
+                            val.helperText
+                          }
+                          required={val.required || val.false}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: "10px",
+                              backgroundColor: "#ffffff",
+                              "& fieldset": { borderColor: "#e2e8f0" },
+                              "&:hover fieldset": { borderColor: "#cbd5e1" },
+                              "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                            },
+                          }}
+                        />
+                      )}
+                      value={
+                        countries.find((c) => c.label === formik.values[val.id]) || null
                       }
-                      required={val.required || val.false}
+                      onChange={(_, newValue) =>
+                        formik.setFieldValue(val.id, newValue?.label || "")
+                      }
+                      onBlur={() => formik.setFieldTouched(val.id, true)}
                     />
-                  )}
-                  options={val.options}
-                  value={formik.values[val.id] || null}
-                  onChange={(_, newValue) => formik.setFieldValue(val.id, newValue)}
-                  onBlur={() => formik.setFieldTouched(val.id, true)}
-                />
-              ) : (
+                  );
+                }
+
+                if (val.type === FIELDS_TYPE.SELECT) {
+                  return (
+                    <FormControl
+                      fullWidth
+                      variant={val.variant || "outlined"}
+                      error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
+                    >
+                      <InputLabel>{val.label || val.placeholder}</InputLabel>
+                      <Select
+                        label={val.label || val.placeholder}
+                        name={val.id}
+                        value={formik.values[val.id] || ""}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        sx={{
+                          borderRadius: "10px",
+                          backgroundColor: "#ffffff",
+                          "& fieldset": { borderColor: "#e2e8f0" },
+                          "&:hover fieldset": { borderColor: "#cbd5e1" },
+                          "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        }}
+                      >
+                        {(val.options as string[])?.map((opt: string) => (
+                          <MenuItem key={opt} value={opt}>
+                            {opt}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {(formik.touched[val.id] && formik.errors[val.id]) || val.helperText ? (
+                        <FormHelperText>
+                          {(formik.touched[val.id] && (formik.errors[val.id] as string)) ||
+                            val.helperText}
+                        </FormHelperText>
+                      ) : null}
+                    </FormControl>
+                  );
+                }
+
+                // Default AUTOCOMPLETE
+                return (
+                  <Autocomplete
+                    options={(val.options as string[]) || []}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label={val.label || val.placeholder}
+                        variant={val.variant || "outlined"}
+                        placeholder={val.placeholder}
+                        error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
+                        helperText={
+                          (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
+                          val.helperText
+                        }
+                        required={val.required || val.false}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            borderRadius: "10px",
+                            backgroundColor: "#ffffff",
+                            "& fieldset": { borderColor: "#e2e8f0" },
+                            "&:hover fieldset": { borderColor: "#cbd5e1" },
+                            "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                          },
+                        }}
+                      />
+                    )}
+                    value={formik.values[val.id] || null}
+                    onChange={(_, newValue) => formik.setFieldValue(val.id, newValue)}
+                    onBlur={() => formik.setFieldTouched(val.id, true)}
+                  />
+                );
+              })()
+            )}
+
+            {val.type === FIELDS_TYPE.COUNTRY_SELECTOR && (
                 <Autocomplete
                   id={val.id}
                   options={countries}
@@ -407,6 +605,15 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                         val.helperText
                       }
                       required={val.required || val.false}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "10px",
+                          backgroundColor: "#ffffff",
+                          "& fieldset": { borderColor: "#e2e8f0" },
+                          "&:hover fieldset": { borderColor: "#cbd5e1" },
+                          "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        },
+                      }}
                     />
                   )}
                   value={
@@ -417,12 +624,14 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   }
                   onBlur={() => formik.setFieldTouched(val.id, true)}
                 />
-              ))}
+              )}
 
             {(val.type === FIELDS_TYPE.CHECKBOX ||
               val.type === FIELDS_TYPE.SWITCH) && (
               <Box>
                 <FormControlLabel
+                  sx={val.type === FIELDS_TYPE.SWITCH ? { width: "100%", m: 0, justifyContent: "space-between" } : undefined}
+                  labelPlacement={val.type === FIELDS_TYPE.SWITCH ? "start" : "end"}
                   control={
                     val.type === FIELDS_TYPE.CHECKBOX ? (
                       <Checkbox
@@ -500,7 +709,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             )}
 
             {val.type === FIELDS_TYPE.FILE_UPLOAD && (
-              <Box sx={{ p: 2, border: "1px dashed", borderColor: "divider", borderRadius: "10px", textAlign: "center" }}>
+              <Box sx={{ p: 2, border: "1px dashed", borderColor: "divider", borderRadius: "10px", textAlign: "center", position: "relative" }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {val.label} {(val.required || val.false) && "*"}
                 </Typography>
@@ -508,24 +717,38 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   {val.config?.allowedExtensions ? `Allowed: ${val.config?.allowedExtensions}` : "All files allowed"} 
                   {val.config?.maxSize ? ` (Max: ${val.config?.maxSize}MB)` : ""}
                 </Typography>
-                <Button variant="outlined" component="label" size="small">
-                  Upload File
-                  <input 
-                    type="file" 
-                    hidden 
-                    accept={val.config?.allowedExtensions || undefined}
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        formik.setFieldValue(val.id, e.target.files[0]);
-                      }
-                    }}
-                  />
-                </Button>
-                {formik.values[val.id] && (
-                  <Typography variant="caption" sx={{ display: "block", mt: 1 }}>
-                    Selected: {(formik.values[val.id] as File).name || "File attached"}
-                  </Typography>
+                
+                {formik.values[val.id] ? (
+                  <Box sx={{ mt: 2, position: "relative", display: "inline-block", maxWidth: "100%" }}>
+                    {(() => {
+                        const fileVal = formik.values[val.id];
+                        const downloadUrl = initialData?.[`${val.id}_downloadUrl`] || initialData?.[`${val.label}_downloadUrl`] || initialData?.[`${val.label?.trim()}_downloadUrl`];
+                        return (
+                          <FilePreview 
+                            fileVal={fileVal} 
+                            previewUrl={typeof fileVal === "string" ? downloadUrl : undefined}
+                            label={val.label} 
+                            onClear={() => formik.setFieldValue(val.id, null)} 
+                          />
+                        );
+                      })()}
+                  </Box>
+                ) : (
+                  <Button variant="outlined" component="label" size="small">
+                    Upload File
+                    <input 
+                      type="file" 
+                      hidden 
+                      accept={val.config?.allowedExtensions || undefined}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          formik.setFieldValue(val.id, e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </Button>
                 )}
+
                 {formik.touched[val.id] && formik.errors[val.id] && (
                   <FormHelperText error sx={{ textAlign: "center", mt: 1 }}>
                     {formik.errors[val.id] as string}
@@ -534,63 +757,88 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
               </Box>
             )}
           </Grid>
-        ))}
+          );
+        })}
       </Grid>
       
-      <Box sx={{ mt: 4, display: "flex", justifyContent: "flex-end", gap: 2 }}>
-        {onDraft && (
+      <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid", borderColor: "divider", pt: 3 }}>
+        <Box>
+          {activeStep > 0 && (
+            <Button
+              variant="outlined"
+              onClick={handleBackStep}
+              disabled={formik.isSubmitting || isDrafting}
+              sx={{ borderRadius: 2, px: 4, py: 1.5, fontFamily: montserrat.style.fontFamily, fontWeight: 600 }}
+            >
+              Back
+            </Button>
+          )}
+        </Box>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          {onDraft && (
+            <Button
+              variant="outlined"
+              disabled={formik.isSubmitting || isDrafting}
+              onClick={async () => {
+                setIsDrafting(true);
+                try {
+                  await onDraft(formik.values);
+                } finally {
+                  setIsDrafting(false);
+                }
+              }}
+              startIcon={isDrafting ? <CircularProgress size={20} color="inherit" /> : null}
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                borderColor: "#6366f1",
+                color: "#6366f1",
+                fontFamily: montserrat.style.fontFamily,
+                fontWeight: 600,
+                "&:hover": {
+                  borderColor: "#4f46e5",
+                  backgroundColor: "rgba(99, 102, 241, 0.04)",
+                },
+                transition: "all 0.2s ease-in-out",
+              }}
+            >
+              {isDrafting ? "Saving..." : draftLabel}
+            </Button>
+          )}
           <Button
-            variant="outlined"
+            variant="contained"
             disabled={formik.isSubmitting || isDrafting}
-            onClick={async () => {
-              setIsDrafting(true);
-              try {
-                await onDraft(formik.values);
-              } finally {
-                setIsDrafting(false);
+            onClick={() => {
+              if (activeStep === pages.length - 1 || pages.length === 0) {
+                if (initialData && Object.keys(initialData).length > 0 && !formik.dirty) {
+                  showSnackbar("Please make some changes before updating", "warning");
+                  return;
+                }
+                formik.handleSubmit();
+              } else {
+                handleNextStep();
               }
             }}
-            startIcon={isDrafting ? <CircularProgress size={20} color="inherit" /> : null}
+            startIcon={formik.isSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
             sx={{
               borderRadius: 2,
-              px: 4,
+              px: 6,
               py: 1.5,
-              borderColor: "#6366f1",
-              color: "#6366f1",
+              background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+              boxShadow: "0px 8px 16px rgba(99, 102, 241, 0.2)",
               fontFamily: montserrat.style.fontFamily,
               fontWeight: 600,
               "&:hover": {
-                borderColor: "#4f46e5",
-                backgroundColor: "rgba(99, 102, 241, 0.04)",
+                transform: "translateY(-2px)",
+                boxShadow: "0px 12px 20px rgba(99, 102, 241, 0.3)",
               },
               transition: "all 0.2s ease-in-out",
             }}
           >
-            {isDrafting ? "Saving..." : draftLabel}
+            {activeStep === pages.length - 1 || pages.length === 0 ? (formik.isSubmitting ? "Processing..." : submitLabel) : "Next"}
           </Button>
-        )}
-        <Button
-          variant="contained"
-          disabled={formik.isSubmitting || isDrafting}
-          onClick={() => formik.handleSubmit()}
-          startIcon={formik.isSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
-          sx={{
-            borderRadius: 2,
-            px: 6,
-            py: 1.5,
-            background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-            boxShadow: "0px 8px 16px rgba(99, 102, 241, 0.2)",
-            fontFamily: montserrat.style.fontFamily,
-            fontWeight: 600,
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0px 12px 20px rgba(99, 102, 241, 0.3)",
-            },
-            transition: "all 0.2s ease-in-out",
-          }}
-        >
-          {formik.isSubmitting ? "Processing..." : submitLabel}
-        </Button>
+        </Box>
       </Box>
     </LocalizationProvider>
   );

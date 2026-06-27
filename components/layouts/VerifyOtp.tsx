@@ -16,13 +16,17 @@ import React, { useState, useRef, useEffect } from "react";
 import { AuthControllers } from "../../api/authControllers";
 
 import { useSnackbar } from "@/context/SnackbarContext";
+import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
 
 export default function VerifyOtp() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
+  const flow = searchParams.get("flow");
   const { showSnackbar } = useSnackbar();
+
+  const { isChecking } = useGuestGuard();
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -91,9 +95,16 @@ export default function VerifyOtp() {
         otp: otpValue
       };
 
+      if (flow === "forgot") {
+        // Skip calling verify-otp API for forgot password flow.
+        // The reset-password API will validate the OTP.
+        router.push(`/reset-password?email=${encodeURIComponent(email || "")}&otp=${encodeURIComponent(otpValue)}`);
+        return;
+      }
+
       const res = await AuthControllers.verifyOtp(payload);
       console.log("Verify OTP API Response:", res?.data);
-      showSnackbar("OTP verified registered successfully", "success");
+      showSnackbar("OTP verified successfully", "success");
       
       // Store token if returned
       const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
@@ -119,6 +130,10 @@ export default function VerifyOtp() {
       setIsLoading(false);
     }
   };
+
+  if (isChecking) {
+    return null;
+  }
 
   return (
     <Box

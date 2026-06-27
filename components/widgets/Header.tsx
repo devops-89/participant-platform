@@ -5,7 +5,6 @@ import { Avatar, Box, Button, Paper, Tooltip, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthControllers } from "@/api/authControllers";
-import LayoutProvider from "./Layout-Provider";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
@@ -20,6 +19,7 @@ const Header = () => {
   const { showSnackbar } = useSnackbar();
 
   const handleLogout = () => {
+    localStorage.setItem("intentionalLogout", "true");
     localStorage.removeItem("accessToken");
     localStorage.removeItem("user");
     showSnackbar("Logged out successfully!", "success");
@@ -29,6 +29,12 @@ const Header = () => {
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      router.push("/");
+      return;
+    }
 
     const fetchUserData = async () => {
       try {
@@ -45,7 +51,25 @@ const Header = () => {
           setUserEmail(userData.email);
         }
         
-        if (userData?.avatarDownloadUrl) {
+        // Attempt to find an uploaded image in the submission data
+        let foundAvatar = "";
+        const subData = (userData?.participant_profile_data && Object.keys(userData.participant_profile_data).length > 0)
+          ? userData.participant_profile_data
+          : (userData?.participantProfile?.submission?.data || userData?.participants?.[0]?.submission?.data);
+        if (subData) {
+          const imageKey = Object.keys(subData).find((k) => k.endsWith('_downloadUrl'));
+          if (imageKey) {
+            foundAvatar = subData[imageKey];
+          } else if (subData['file_downloadUrl']) {
+            foundAvatar = subData['file_downloadUrl'];
+          } else if (subData['file']) {
+            foundAvatar = subData['file'];
+          }
+        }
+
+        if (foundAvatar) {
+          setUserAvatar(foundAvatar);
+        } else if (userData?.avatarDownloadUrl) {
           setUserAvatar(userData.avatarDownloadUrl);
         } else if (userData?.avatarUrl) {
           setUserAvatar(userData.avatarUrl);
@@ -69,11 +93,17 @@ const Header = () => {
 
     fetchUserData();
 
-    return () => window.removeEventListener("scroll", handleScroll);
+    const handleProfileUpdate = () => fetchUserData();
+    window.addEventListener("profileUpdated", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("profileUpdated", handleProfileUpdate);
+    };
   }, []);
 
   return (
-    <LayoutProvider>
+    <>
       <Box
         sx={{
           display: "flex",
@@ -183,18 +213,42 @@ const Header = () => {
                 gap: 1.5,
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.5, pb: 1, borderBottom: `1px solid ${colors.BORDER}` }}>
                 <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
+                  <Typography 
+                    variant="subtitle2" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: colors.TEXT_PRIMARY,
+                      whiteSpace: "nowrap"
+                    }}
+                  >
                     {userName}
                   </Typography>
-                  {userEmail && (
-                    <Typography variant="caption" sx={{ color: colors.TEXT_SECONDARY, display: "block" }}>
-                      {userEmail}
-                    </Typography>
-                  )}
                 </Box>
               </Box>
+
+              <Button
+                variant="text"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push("/profile");
+                }}
+                sx={{
+                  justifyContent: "flex-start",
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  fontWeight: 500,
+                  color: colors.TEXT_PRIMARY,
+                  "&:hover": {
+                    bgcolor: "rgba(0, 0, 0, 0.04)",
+                  },
+                }}
+              >
+                Profile
+              </Button>
 
               <Button
                 variant="text"
@@ -220,7 +274,7 @@ const Header = () => {
           </Box>
         </Box>
       </Box>
-    </LayoutProvider>
+    </>
   );
 };
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Card, Typography, CircularProgress } from "@mui/material";
 import { useAppTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumb from "@/components/widgets/Breadcrumb";
 import DynamicFormRenderer from "@/components/widgets/DynamicFormRenderer";
 import { contestControllers } from "@/api/contestControllers";
@@ -14,7 +14,10 @@ import { AuthControllers } from "@/api/authControllers";
 const AddEntry = () => {
   const { colors } = useAppTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showSnackbar } = useSnackbar();
+
+  const urlContestId = searchParams.get("contestId");
 
   const [contestId, setContestId] = useState<string | null>(null);
   const [templateFields, setTemplateFields] = useState<any[]>([]);
@@ -28,22 +31,39 @@ const AddEntry = () => {
         let fetchedContestId = null;
 
         let hasLocalContestData = false;
-        try {
-          const userStr = localStorage.getItem("user");
-          if (userStr) {
-            const user = JSON.parse(userStr);
-            if (user?.contests && user.contests.length > 0) {
-              const contest = user.contests[0];
-              fetchedContestId = contest.id;
+
+        if (urlContestId) {
+          try {
+            const detailsRes = await contestControllers.getContestDetails(urlContestId);
+            const fields = detailsRes?.data?.entryLevelTemplate?.schema?.fields || detailsRes?.entryLevelTemplate?.schema?.fields;
+            if (fields) {
+              templateFieldsFromApi = fields;
+              fetchedContestId = urlContestId;
               hasLocalContestData = true;
-              if (contest.entryLevelTemplate?.schema?.fields) {
-                templateFieldsFromApi = contest.entryLevelTemplate.schema.fields;
-              }
-            } else if (user?.contestId) {
-              fetchedContestId = user.contestId;
             }
+          } catch (err) {
+            console.error("Failed to fetch contest by ID from URL", err);
           }
-        } catch(e) {}
+        }
+
+        if (!hasLocalContestData) {
+          try {
+            const userStr = localStorage.getItem("user");
+            if (userStr) {
+              const user = JSON.parse(userStr);
+              if (user?.contests && user.contests.length > 0) {
+                const contest = user.contests[0];
+                fetchedContestId = contest.id;
+                hasLocalContestData = true;
+                if (contest.entryLevelTemplate?.schema?.fields) {
+                  templateFieldsFromApi = contest.entryLevelTemplate.schema.fields;
+                }
+              } else if (user?.contestId) {
+                fetchedContestId = user.contestId;
+              }
+            }
+          } catch(e) {}
+        }
 
         if (!hasLocalContestData || !templateFieldsFromApi) {
           // We will call getContest() which for participants returns their specific contest details directly.

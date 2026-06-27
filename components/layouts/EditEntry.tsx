@@ -121,6 +121,8 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
           if (fieldDef?.type === "file_upload" || fieldDef?.type === "file" || fieldDef?.type === "image") {
             if (value instanceof File) {
               formData.append(key, value);
+            } else if (typeof value === "string") {
+              formData.append(key, value);
             }
           } else {
             formData.append(key, value);

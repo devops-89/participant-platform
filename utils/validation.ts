@@ -45,3 +45,25 @@ export const CONTEST_VALIDATION = Yup.object({
     "Please Select Entry Form Template",
   ),
 });
+
+export const ForgotPassword_Validation = Yup.object({
+  email: Yup.string()
+    .email("Please Enter Valid Email")
+    .required("Please Enter Email"),
+});
+
+export const ResetPassword_Validation = Yup.object({
+  otp: Yup.string().required("Please Enter OTP"),
+  password: Yup.string()
+    .min(8, "Password must be at least 8 characters")
+    .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+    .matches(/[0-9]/, "Password must include at least one number")
+    .matches(
+      /[!@#$%^&*(),.?":{}|<>]/,
+      "Password must include at least one special character",
+    )
+    .required("Please Enter Password"),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref("password")], "Passwords must match")
+    .required("Please Confirm Your Password"),
+});

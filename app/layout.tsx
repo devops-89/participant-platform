@@ -3,7 +3,7 @@ import { science_gothic } from "@/utils/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CMS Launchpad",
+  title: "Ignite Innovation",
   description: "Modern Content Management System",
 };
 

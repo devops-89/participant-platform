@@ -41,4 +41,33 @@ export const AuthControllers = {
       throw error;
     }
   },
+  forgotPassword: async (payload: { email: string }) => {
+    try {
+      let result = await authPublicApi.post("forgot-password", payload);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  },
+  resetPassword: async (payload: any) => {
+    try {
+      let result = await authPublicApi.post("reset-password", payload);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  },
+  updateUserDetails: async (id: string, payload: any) => {
+    try {
+      let result = await userSecuredApi.put(`/${id}`, payload, {
+        headers: {
+          "Content-Type": payload instanceof FormData ? "multipart/form-data" : "application/json",
+        }
+      });
+      return result.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
+

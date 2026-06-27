@@ -17,11 +17,60 @@ import {
   Phone,
   Star,
   Tune,
+  PlayArrow,
+  Videocam,
+  Image as ImageIcon
 } from "@mui/icons-material";
 import { Avatar, Box, Button, Card, Chip, CircularProgress, Grid, Paper, Rating, Typography } from "@mui/material";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
+
+const VideoPlayerRenderer = ({ urlStr }: { urlStr: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+    if (videoRef.current) {
+      videoRef.current.play();
+    }
+  };
+
+  return (
+    <Box 
+      sx={{ 
+        position: 'relative', width: "100%", maxWidth: 600, height: 340, borderRadius: 3, overflow: 'hidden', 
+        flexShrink: 0, border: '1px solid rgba(0,0,0,0.1)', bgcolor: "#000",
+        display: "flex", justifyContent: "center", alignItems: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.1)"
+      }}
+    >
+      <video 
+        ref={videoRef}
+        src={urlStr} 
+        controls={isPlaying} 
+        style={{ width: "100%", height: "100%", objectFit: "contain" }} 
+        preload="metadata" 
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      {!isPlaying && (
+        <Box 
+          onClick={handlePlay}
+          sx={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            bgcolor: 'rgba(0,0,0,0.3)', cursor: 'pointer',
+            "&:hover .play-icon": { transform: "scale(1.1)", color: "#fff" }
+          }}
+        >
+          <PlayArrow className="play-icon" sx={{ fontSize: 64, color: "rgba(255,255,255,0.8)", transition: "all 0.2s ease" }} />
+        </Box>
+      )}
+    </Box>
+  );
+};
 
 const EntryDetails = ({ entryId }: { entryId: string }) => {
   const { colors } = useAppTheme();
@@ -38,26 +87,44 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
         setLoading(true);
         let actualContestId = null;
         let templateFieldsFromApi: any[] = [];
-        
         let hasLocalContestData = false;
         try {
           const userStr = localStorage.getItem("user");
           if (userStr) {
             const user = JSON.parse(userStr);
-            if (user?.contests && user.contests.length > 0) {
+            if (user?.participants && Array.isArray(user.participants)) {
+              for (const p of user.participants) {
+                if (p.entries && Array.isArray(p.entries)) {
+                  const foundEntry = p.entries.find((e: any) => e.id === entryId || e.submission?.id === entryId || e.submission_id === entryId);
+                  if (foundEntry) {
+                    actualContestId = p.contest_id || p.contest?.id;
+                    hasLocalContestData = true;
+                    if (p.contest?.entryLevelTemplate?.schema?.fields) {
+                      templateFieldsFromApi = p.contest.entryLevelTemplate.schema.fields;
+                    } else if (p.contest?.entry_level_template?.schema?.fields) {
+                      templateFieldsFromApi = p.contest.entry_level_template.schema.fields;
+                    }
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Fallback for single contest logic
+            if (!actualContestId && user?.contests && user.contests.length > 0) {
               const contest = user.contests[0];
               actualContestId = contest.id;
               hasLocalContestData = true;
               if (contest.entryLevelTemplate?.schema?.fields) {
                 templateFieldsFromApi = contest.entryLevelTemplate.schema.fields;
               }
-            } else if (user?.contestId) {
+            } else if (!actualContestId && user?.contestId) {
               actualContestId = user.contestId;
             }
           }
         } catch(e) {}
 
-        if (!hasLocalContestData) {
+        if (!hasLocalContestData && !actualContestId) {
           const contestRes = await contestControllers.getContest();
           
           if (contestRes?.data?.docs && contestRes.data.docs.length > 0) {
@@ -135,6 +202,11 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
     if (type === "checkbox" || type === "switch")
       return <CheckCircle sx={{ fontSize: 20 }} />;
     if (type === "slider") return <Tune sx={{ fontSize: 20 }} />;
+    if (type === "file_upload" || lowercaseLabel.includes("video")) {
+      if (lowercaseLabel.includes("video")) return <Videocam sx={{ fontSize: 20 }} />;
+      if (lowercaseLabel.includes("image") || lowercaseLabel.includes("photo")) return <ImageIcon sx={{ fontSize: 20 }} />;
+      return <InsertDriveFile sx={{ fontSize: 20 }} />;
+    }
 
     if (lowercaseLabel.includes("name") || lowercaseLabel.includes("member") || lowercaseLabel.includes("father"))
       return <AccountCircle sx={{ fontSize: 20 }} />;
@@ -197,7 +269,10 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
     if (type === "file_upload" || type === "file" || type === "image") {
       if (!value) return null;
       const urlStr = typeof value === 'string' ? value : (value.downloadUrl || String(value));
-      const isImage = typeof urlStr === 'string' && urlStr.match(/\.(jpeg|jpg|gif|png|webp)/i);
+      const urlWithoutQuery = urlStr.split('?')[0];
+      const extension = urlWithoutQuery.split('.').pop()?.toLowerCase();
+      const isImage = typeof urlStr === 'string' && urlStr.match(/\.(jpeg|jpg|gif|png|webp)(\?|$)/i);
+      const isVideo = ['mp4', 'mov', 'mkv', 'webm', 'ogg'].includes(extension || "");
       
       const handleDownload = async (e: React.MouseEvent) => {
         e.preventDefault();
@@ -222,31 +297,59 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
       };
 
       return (
-        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2, p: 1.5, border: `1px solid ${colors.BORDER}`, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.02)' }}>
-          {isImage ? (
-            <Box sx={{ position: 'relative', width: 60, height: 60, borderRadius: 1, overflow: 'hidden', flexShrink: 0, border: `1px solid ${colors.BORDER}` }}>
-              <Image src={urlStr} alt="Uploaded file" fill style={{ objectFit: "cover" }} sizes="60px" />
+        <Box sx={{ mt: 1, display: 'flex', flexDirection: isVideo ? 'column' : { xs: 'column', sm: 'row' }, alignItems: isVideo ? 'stretch' : 'center', gap: 2, p: 2, border: `1px solid ${colors.BORDER}`, borderRadius: 3, bgcolor: "rgba(0,0,0,0.02)", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
+          {isVideo ? (
+            <VideoPlayerRenderer urlStr={urlStr} />
+          ) : isImage ? (
+            <Box sx={{ position: 'relative', width: 80, height: 80, borderRadius: 2, overflow: 'hidden', flexShrink: 0, border: `1px solid ${colors.BORDER}`, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+              <Image src={urlStr} alt="Uploaded file" fill style={{ objectFit: "cover" }} sizes="80px" />
             </Box>
           ) : (
-            <Box sx={{ width: 60, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(99, 102, 241, 0.1)', borderRadius: 1, color: colors.PRIMARY, flexShrink: 0 }}>
-              <InsertDriveFile sx={{ fontSize: 30 }} />
+            <Box sx={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(99, 102, 241, 0.1)', borderRadius: 2, color: colors.PRIMARY, flexShrink: 0 }}>
+              <InsertDriveFile sx={{ fontSize: 36 }} />
             </Box>
           )}
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-             <Typography variant="caption" noWrap sx={{ display: 'block', fontWeight: 600, color: colors.TEXT_PRIMARY }}>
-               {isImage ? "Image File" : "Document File"}
-             </Typography>
-             <Button variant="outlined" size="small" onClick={handleDownload} startIcon={<Download />} sx={{ mt: 0.5, textTransform: 'none', py: 0.25, px: 1.5, fontSize: '0.75rem', borderRadius: 1.5 }}>
-               Download
-             </Button>
-          </Box>
+          {!isVideo && (
+            <Box sx={{ flexGrow: 1, minWidth: 0, pl: 1 }}>
+               <Typography variant="body1" noWrap sx={{ display: 'block', fontWeight: 700, color: colors.TEXT_PRIMARY }}>
+                 {isImage ? "Image File" : "Document File"}
+               </Typography>
+               {!isImage && (
+                 <Button variant="outlined" size="small" onClick={handleDownload} startIcon={<Download />} sx={{ mt: 1, textTransform: 'none', py: 0.5, px: 2, fontSize: '0.85rem', borderRadius: 2, fontWeight: 600 }}>
+                   Download File
+                 </Button>
+               )}
+            </Box>
+          )}
+          {isVideo && (
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", width: "100%", maxWidth: 600, gap: 2, px: 1 }}>
+               <Typography variant="h6" sx={{ fontWeight: 800, color: colors.TEXT_PRIMARY }}>
+                 Video Attachment
+               </Typography>
+            </Box>
+          )}
         </Box>
+      );
+    }
+
+    const renderValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    
+    // Check if the value is a valid URL
+    const isUrl = typeof renderValue === 'string' && (renderValue.startsWith('http://') || renderValue.startsWith('https://'));
+
+    if (isUrl) {
+      return (
+        <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: "break-word", mt: 0.5 }}>
+          <a href={renderValue} target="_blank" rel="noopener noreferrer" style={{ color: colors.PRIMARY, textDecoration: 'underline' }}>
+            {renderValue}
+          </a>
+        </Typography>
       );
     }
 
     return (
       <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY, wordBreak: "break-word", mt: 0.5 }}>
-        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+        {renderValue}
       </Typography>
     );
   };
@@ -267,6 +370,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
         }
         currentGroup = { title: field.label, fields: [] };
       } else {
+        if (field.type === "textblock" || field.type === "checkbox") return;
         const labelTrimmed = field.label?.trim() || "";
         const downloadUrl = submissionData[`${labelTrimmed}_downloadUrl`] || submissionData[`${field.label}_downloadUrl`] || submissionData[`${field.id}_downloadUrl`];
         const value = downloadUrl || submissionData[labelTrimmed] || submissionData[field.label] || submissionData[field.id];

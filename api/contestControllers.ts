@@ -31,4 +31,18 @@ export const contestControllers = {
       throw error;
     }
   },
+  updateParticipant: async (contestId: string, participantId: string, payload: any) => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      const response = await contestSecuredApi.patch(`/${contestId}/participants/${participantId}`, payload, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": payload instanceof FormData ? "multipart/form-data" : "application/json",
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };

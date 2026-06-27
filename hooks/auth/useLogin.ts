@@ -21,8 +21,19 @@ export const useLogin = () => {
       
       const res = await AuthControllers.login(payload);
       console.log("Login API Response:", res?.data);
-      
       const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
+      
+      // Explicitly block non-participants
+      const actualUserData = res?.data?.data?.user || res?.data?.user || res?.data?.data || res?.data;
+      if (actualUserData?.role && actualUserData.role !== 'participant') {
+        throw new Error("Access denied: Only participants can log into this platform.");
+      }
+
+      // Block unverified accounts
+      if (actualUserData?.status === 'Pending' || actualUserData?.isVerified === false || actualUserData?.is_verified === false) {
+        throw new Error("Please complete OTP verification before logging in.");
+      }
+
       if (token) {
         localStorage.setItem('accessToken', token);
       }
@@ -33,7 +44,9 @@ export const useLogin = () => {
       showSnackbar("Logged in successfully!", "success");
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Login failed. Please check your credentials.');
+      const errorMessage = err?.response?.data?.message || err?.message || 'Login failed. Please check your credentials.';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
