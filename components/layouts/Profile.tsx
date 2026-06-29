@@ -200,7 +200,10 @@ export default function Profile() {
           field.type === "email" ||
           (field.label && field.label.toLowerCase().includes("email"))
         ) {
-          validator = validator.email("Invalid email format");
+          validator = validator.matches(
+            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
+            "Invalid email format"
+          );
         }
 
         acc[field.id] = validator;

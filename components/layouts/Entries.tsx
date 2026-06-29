@@ -55,7 +55,9 @@ const Entries = () => {
             setIsBanned(true);
           }
           if (userObj.participants && userObj.participants.length > 0) {
-            const active = userObj.participants.filter((p: any) => p.status !== "Banned" && p.status !== "banned" && p.status !== "rejected" && p.status !== "Rejected" && p.contest);
+            const active = userObj.participants.filter(
+              (p: any) => p.status !== "Banned" && p.status !== "banned" && p.status !== "rejected" && p.status !== "Rejected" && p.contest && (p.contest.status === "Published" || p.contest.status === "published")
+            );
             setActiveContests(active.map((p: any) => p.contest));
 
             const allEntries = userObj.participants.flatMap((p: any) => {
@@ -117,7 +119,13 @@ const Entries = () => {
               if (activeContests.length > 1) {
                 setContestPopupOpen(true);
               } else if (activeContests.length === 1) {
-                router.push(`/entries/add?contestId=${activeContests[0].id}`);
+                const contestId = activeContests[0].id || activeContests[0]._id;
+                const hasEntry = entries.some((entry: any) => entry.contest_id === contestId || (entry.contest?.id || entry.contest?._id) === contestId);
+                if (hasEntry) {
+                  showSnackbar("You have already submitted an entry for this contest.", "warning");
+                } else {
+                  router.push(`/entries/add?contestId=${contestId}`);
+                }
               } else {
                 router.push("/entries/add");
               }
@@ -145,6 +153,7 @@ const Entries = () => {
             <TableRow>
               <TableCell sx={{ fontWeight: 600 }}>Thumbnail</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Title</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Contest</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Author</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -243,6 +252,11 @@ const Entries = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
+                      <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, fontWeight: 500 }}>
+                        {contest?.name || contest?.title || "Unknown Contest"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
                       <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY }}>
                         {authorName || "Unknown"}
                       </Typography>
@@ -310,7 +324,10 @@ const Entries = () => {
                     </TableCell>
 
                     <TableCell align="right">
-                      {entry.status?.toLowerCase() === "draft" && (
+                      {entry.status?.toLowerCase() === "draft" && 
+                       !isBanned &&
+                       entry.participant?.status?.toLowerCase() !== "banned" &&
+                       (contest?.status === "Published" || contest?.status === "published") && (
                         <Tooltip title="Edit Draft">
                           <IconButton component={Link} href={`/entries/edit/${entry.id}`} color="secondary">
                             <Edit />
@@ -357,7 +374,15 @@ const Entries = () => {
         <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button onClick={() => setContestPopupOpen(false)} color="inherit">Cancel</Button>
           <Button 
-            onClick={() => router.push(`/entries/add?contestId=${selectedContestIdPopup}`)} 
+            onClick={() => {
+              const hasEntry = entries.some((entry: any) => entry.contest_id === selectedContestIdPopup || (entry.contest?.id || entry.contest?._id) === selectedContestIdPopup);
+              if (hasEntry) {
+                showSnackbar("You have already submitted an entry for this contest.", "warning");
+                setContestPopupOpen(false);
+              } else {
+                router.push(`/entries/add?contestId=${selectedContestIdPopup}`);
+              }
+            }} 
             color="primary" 
             variant="contained"
             disabled={!selectedContestIdPopup}

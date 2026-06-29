@@ -31,6 +31,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
 import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import React, { useState, useMemo, useEffect } from "react";
 import * as Yup from "yup";
 
@@ -60,6 +61,24 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const [stepHistory, setStepHistory] = useState<number[]>([]);
   const { showSnackbar } = useSnackbar();
 
+  const getFieldError = (fieldId: string) => {
+    const error = formik.errors[fieldId];
+    if (!error) return null;
+    
+    const isTouched = formik.touched[fieldId];
+    const val = formik.values[fieldId];
+    
+    // For MuiTelInput with forceCallingCode, the initial value might be just the country code (e.g., "+91")
+    // We shouldn't treat this as "hasValue" unless it contains actual phone number digits after the country code.
+    const isOnlyCountryCode = typeof val === "string" && /^\+\d{1,4}$/.test(val.trim());
+    const hasValue = val !== undefined && val !== null && val !== "" && !isOnlyCountryCode;
+    
+    if (isTouched || hasValue) {
+      return error as string;
+    }
+    return null;
+  };
+
   const pages = useMemo(() => {
     const p: any[][] = [];
     let current: any[] = [];
@@ -87,7 +106,11 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         const finalVal = valById !== undefined ? valById : (valByLabel !== undefined ? valByLabel : valByTrimmed);
 
         if (finalVal !== undefined && finalVal !== null) {
-          acc[field.id] = finalVal;
+          if (field.type === FIELDS_TYPE.CHECKBOX || field.type === FIELDS_TYPE.SWITCH) {
+            acc[field.id] = finalVal === true || String(finalVal).toLowerCase() === "true" || finalVal === "Yes";
+          } else {
+            acc[field.id] = finalVal;
+          }
           return acc;
         }
 
@@ -242,9 +265,108 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
           return;
       }
 
-      if (field.required || field.false) {
-        validator = validator.required(`${field.label} is required`);
+      const lowercaseLabel = field.label?.toLowerCase() || "";
+
+      // Password checks
+      if (field.type === FIELDS_TYPE.PASSWORD || lowercaseLabel.includes("password")) {
+        validator = validator
+          .min(8, "Password must be at least 8 characters")
+          .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+          .matches(/[a-z]/, "Password must include at least one lowercase letter")
+          .matches(/[0-9]/, "Password must include at least one number")
+          .matches(
+            /[!@#$%^&*(),.?":{}|<>]/,
+            "Password must include at least one special character"
+          );
       }
+
+      // Name fields validation: allow only alphabets and spaces
+      if (
+        lowercaseLabel.includes("name") ||
+        lowercaseLabel.includes("first name") ||
+        lowercaseLabel.includes("last name")
+      ) {
+        validator = validator.matches(
+          /^[A-Za-z\s]+$/,
+          "Only alphabets and spaces are allowed"
+        );
+      }
+
+      // Province/State/City validation
+      if (
+        lowercaseLabel.includes("province") ||
+        lowercaseLabel.includes("state") ||
+        lowercaseLabel.includes("city")
+      ) {
+        validator = validator.matches(
+          /^[A-Za-z\s'-]+$/,
+          "Only alphabetic characters are allowed"
+        );
+      }
+
+      // Zip Code validation
+      if (
+        lowercaseLabel.includes("zip") ||
+        lowercaseLabel.includes("postal") ||
+        lowercaseLabel.includes("pin code") ||
+        lowercaseLabel.includes("pincode")
+      ) {
+        validator = validator
+          .matches(/^[0-9]+$/, "Only digits are allowed")
+          .min(3, "Zip Code is too short")
+          .max(10, "Zip Code is too long");
+      }
+
+      // Date of Birth / date picker validation
+      if (
+        field.type === FIELDS_TYPE.DATE_PICKER ||
+        lowercaseLabel.includes("date of birth") ||
+        lowercaseLabel.includes("dob")
+      ) {
+        validator = Yup.mixed()
+          .test("isValidDate", "Invalid date format", (value: any) => {
+            if (!value) return !field.required;
+            return dayjs(value).isValid();
+          });
+
+        if (lowercaseLabel.includes("dob") || lowercaseLabel.includes("date of birth") || field.config?.disableFuture) {
+          validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
+            if (!value) return true;
+            return dayjs(value).isBefore(dayjs().endOf('day'));
+          });
+        }
+
+        if (field.config?.disablePast) {
+          validator = validator.test("noPastDate", "Date cannot be in the past", (value: any) => {
+            if (!value) return true;
+            return dayjs(value).isAfter(dayjs().startOf('day'));
+          });
+        }
+      }
+
+      if (lowercaseLabel.includes("email")) {
+        validator = validator.email("Invalid email format");
+      }
+
+      if (field.required || field.false) {
+        if (field.type === FIELDS_TYPE.FILE_UPLOAD) {
+          // Already handled in fileValidator
+        } else if (field.type === FIELDS_TYPE.DATE_PICKER) {
+          validator = validator.test(
+            "dateRequired",
+            `${field.label} is required`,
+            (value: any) => value !== null && value !== undefined && value !== ""
+          );
+        } else if (
+          field.type === FIELDS_TYPE.CHECKBOX ||
+          field.type === FIELDS_TYPE.SWITCH
+        ) {
+          validator = validator.oneOf([true], "This field is required");
+        } else {
+          validator = validator.required(`${field.label} is required`);
+        }
+      }
+
       schemaFields[field.id] = validator;
     });
     return Yup.object(schemaFields);
@@ -324,6 +446,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     ? "password"
                     : "text"
                 }
+                autoComplete={val.type === FIELDS_TYPE.PASSWORD ? "new-password" : "off"}
                 multiline={val.type === FIELDS_TYPE.TEXTAREA}
                 minRows={val.type === FIELDS_TYPE.TEXTAREA ? 4 : undefined}
                 maxRows={val.type === FIELDS_TYPE.TEXTAREA ? 10 : undefined}
@@ -335,11 +458,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 value={formik.values[val.id] || ""}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                helperText={
-                  (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                  val.helperText
-                }
+                error={Boolean(getFieldError(val.id))}
+                helperText={getFieldError(val.id) || val.helperText}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: "10px",
@@ -373,10 +493,28 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   required={val.required || val.false}
                   name={val.id}
                   value={formik.values[val.id] || ""}
-                  onChange={(value) => formik.setFieldValue(val.id, value)}
+                  onChange={(value, info) => {
+                    if (info && info.countryCode) {
+                      const countryMaxLengths: Record<string, number> = {
+                        IN: 10,
+                        AE: 9,
+                        US: 10,
+                        GB: 10,
+                      };
+                      const maxLen = countryMaxLengths[info.countryCode];
+                      if (maxLen) {
+                        const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
+                        if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
+                          return; // prevent typing more digits
+                        }
+                      }
+                    }
+                    formik.setFieldValue(val.id, value);
+                  }}
                   onBlur={() => formik.setFieldTouched(val.id, true)}
-                  error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                  defaultCountry={val.config?.defaultCountry}
+                  error={Boolean(getFieldError(val.id))}
+                  defaultCountry={(val.config?.defaultCountry || "IN") as any}
+                  forceCallingCode
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: "10px",
@@ -387,9 +525,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     },
                   }}
                 />
-                {formik.touched[val.id] && formik.errors[val.id] && (
+                {getFieldError(val.id) && (
                   <FormHelperText error>
-                    {formik.errors[val.id] as string}
+                    {getFieldError(val.id)}
                   </FormHelperText>
                 )}
               </Box>
@@ -408,10 +546,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   }
                   slotProps={{
                     textField: {
-                      error: formik.touched[val.id] && Boolean(formik.errors[val.id]),
-                      helperText:
-                        (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                        val.helperText,
+                      error: Boolean(getFieldError(val.id)),
+                      helperText: getFieldError(val.id) || val.helperText,
                       required: val.required || val.false,
                     },
                   }}
@@ -467,11 +603,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                           {...params}
                           label={val.label || "Choose a country"}
                           fullWidth
-                          error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                          helperText={
-                            (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                            val.helperText
-                          }
+                          error={Boolean(getFieldError(val.id))}
+                          helperText={getFieldError(val.id) || val.helperText}
                           required={val.required || val.false}
                           sx={{
                             "& .MuiOutlinedInput-root": {
@@ -500,7 +633,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     <FormControl
                       fullWidth
                       variant={val.variant || "outlined"}
-                      error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
+                      error={Boolean(getFieldError(val.id))}
                     >
                       <InputLabel>{val.label || val.placeholder}</InputLabel>
                       <Select
@@ -523,10 +656,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                           </MenuItem>
                         ))}
                       </Select>
-                      {(formik.touched[val.id] && formik.errors[val.id]) || val.helperText ? (
+                      {getFieldError(val.id) || val.helperText ? (
                         <FormHelperText>
-                          {(formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                            val.helperText}
+                          {getFieldError(val.id) || val.helperText}
                         </FormHelperText>
                       ) : null}
                     </FormControl>
@@ -543,11 +675,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                         label={val.label || val.placeholder}
                         variant={val.variant || "outlined"}
                         placeholder={val.placeholder}
-                        error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                        helperText={
-                          (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                          val.helperText
-                        }
+                        error={Boolean(getFieldError(val.id))}
+                        helperText={getFieldError(val.id) || val.helperText}
                         required={val.required || val.false}
                         sx={{
                           "& .MuiOutlinedInput-root": {
@@ -599,11 +728,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                       {...params}
                       label={val.label || "Choose a country"}
                       fullWidth
-                      error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
-                      helperText={
-                        (formik.touched[val.id] && (formik.errors[val.id] as string)) ||
-                        val.helperText
-                      }
+                      error={Boolean(getFieldError(val.id))}
+                      helperText={getFieldError(val.id) || val.helperText}
                       required={val.required || val.false}
                       sx={{
                         "& .MuiOutlinedInput-root": {
@@ -651,8 +777,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   }
                   label={val.label}
                 />
-                {formik.touched[val.id] && formik.errors[val.id] && (
-                  <FormHelperText error>{formik.errors[val.id] as string}</FormHelperText>
+                {getFieldError(val.id) && (
+                  <FormHelperText error>{getFieldError(val.id)}</FormHelperText>
                 )}
               </Box>
             )}
@@ -660,7 +786,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             {val.type === FIELDS_TYPE.RADIO && (
               <FormControl
                 component="fieldset"
-                error={formik.touched[val.id] && Boolean(formik.errors[val.id])}
+                error={Boolean(getFieldError(val.id))}
               >
                 <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
                   {val.label}
@@ -675,8 +801,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
                   ))}
                 </RadioGroup>
-                {formik.touched[val.id] && formik.errors[val.id] && (
-                  <FormHelperText>{formik.errors[val.id] as string}</FormHelperText>
+                {getFieldError(val.id) && (
+                  <FormHelperText>{getFieldError(val.id)}</FormHelperText>
                 )}
               </FormControl>
             )}
@@ -702,8 +828,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     onBlur={() => formik.setFieldTouched(val.id, true)}
                   />
                 )}
-                {formik.touched[val.id] && formik.errors[val.id] && (
-                  <FormHelperText error>{formik.errors[val.id] as string}</FormHelperText>
+                {getFieldError(val.id) && (
+                  <FormHelperText error>{getFieldError(val.id)}</FormHelperText>
                 )}
               </Box>
             )}
@@ -749,9 +875,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   </Button>
                 )}
 
-                {formik.touched[val.id] && formik.errors[val.id] && (
+                {getFieldError(val.id) && (
                   <FormHelperText error sx={{ textAlign: "center", mt: 1 }}>
-                    {formik.errors[val.id] as string}
+                    {getFieldError(val.id)}
                   </FormHelperText>
                 )}
               </Box>
@@ -809,8 +935,16 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
           <Button
             variant="contained"
             disabled={formik.isSubmitting || isDrafting}
-            onClick={() => {
+            onClick={async () => {
               if (activeStep === pages.length - 1 || pages.length === 0) {
+                const errors = await formik.validateForm();
+                if (Object.keys(errors).length > 0) {
+                  const touchedFields: Record<string, boolean> = {};
+                  Object.keys(errors).forEach((key) => {
+                    touchedFields[key] = true;
+                  });
+                  formik.setTouched(touchedFields);
+                }
                 if (initialData && Object.keys(initialData).length > 0 && !formik.dirty) {
                   showSnackbar("Please make some changes before updating", "warning");
                   return;

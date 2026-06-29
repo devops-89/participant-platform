@@ -643,6 +643,14 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <Typography variant="caption" sx={{ color: colors.TEXT_SECONDARY, display: "block", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, mb: 0.5 }}>
+                  Contest
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
+                  {entry?.contest?.name || entry?.contest?.title || "Unknown Contest"}
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Typography variant="caption" sx={{ color: colors.TEXT_SECONDARY, display: "block", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, mb: 0.5 }}>
                   Submitted At
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>

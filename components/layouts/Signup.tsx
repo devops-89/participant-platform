@@ -35,6 +35,7 @@ import { useFormik } from "formik";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import * as Yup from "yup";
 import { countries } from "@/utils/constant";
 import { AuthControllers } from "../../api/authControllers";
@@ -68,6 +69,25 @@ export default function Signup() {
 
   const [selectedContestId, setSelectedContestId] = useState("");
   const [selectedCountryId, setSelectedCountryId] = useState("");
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>("IN");
+
+  const getFieldError = (fieldId: string) => {
+    const error = formik.errors[fieldId];
+    if (!error) return null;
+    
+    const isTouched = formik.touched[fieldId];
+    const val = formik.values[fieldId];
+    
+    // For MuiTelInput with forceCallingCode, the initial value might be just the country code (e.g., "+91")
+    // We shouldn't treat this as "hasValue" unless it contains actual phone number digits after the country code.
+    const isOnlyCountryCode = typeof val === "string" && /^\+\d{1,4}$/.test(val.trim());
+    const hasValue = val !== undefined && val !== null && val !== "" && !isOnlyCountryCode;
+    
+    if (isTouched || hasValue) {
+      return error as string;
+    }
+    return null;
+  };
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -90,12 +110,21 @@ export default function Signup() {
   // Fetch contests when a country is selected
   useEffect(() => {
     if (selectedCountryId && apiCountries.length > 0) {
+      const selectedCountry = apiCountries.find(
+        (c) => c.id === selectedCountryId,
+      );
+      if (selectedCountry) {
+        const matched = countries.find(
+          (c) => c.label.toLowerCase() === selectedCountry.name?.toLowerCase()
+        );
+        if (matched) {
+          setSelectedCountryCode(matched.code);
+        }
+      }
+
       const fetchContestsByCountry = async () => {
         setIsLoadingContests(true);
         try {
-          const selectedCountry = apiCountries.find(
-            (c) => c.id === selectedCountryId,
-          );
           const countryQuery = selectedCountry ? selectedCountry.name : "";
 
           const contestResponse =
@@ -191,22 +220,82 @@ export default function Signup() {
           );
       }
 
+      const lowercaseLabel = field.label.toLowerCase();
+
+      // Name fields validation: allow only alphabets and spaces/hyphens
       if (
-        field.label.toLowerCase() === "name" ||
-        field.label.toLowerCase() === "first name" ||
-        field.label.toLowerCase() === "last name"
+        lowercaseLabel.includes("name") ||
+        lowercaseLabel.includes("first name") ||
+        lowercaseLabel.includes("last name")
       ) {
         validator = validator.matches(
-          /^[A-Za-z\s]+$/,
-          "Only alphabets and spaces are allowed"
+          /^[A-Za-z\s'-]+$/,
+          "Only alphabetic characters are allowed"
         );
       }
 
-      if (field.label.toLowerCase() === "innovation title") {
+      // Innovation title validation
+      if (lowercaseLabel === "innovation title") {
         validator = validator.matches(
-          /^[A-Za-z0-9\s]+$/,
-          "Only letters, numbers, and spaces are allowed"
+          /.*[a-zA-Z].*/,
+          "Must contain at least one letter"
+        ).matches(
+          /^[A-Za-z0-9\s.,&'-]+$/,
+          "Only letters, numbers, and basic punctuation are allowed"
         );
+      }
+
+      // Province/State/City validation
+      if (
+        lowercaseLabel.includes("province") ||
+        lowercaseLabel.includes("state") ||
+        lowercaseLabel.includes("city")
+      ) {
+        validator = validator.matches(
+          /^[A-Za-z\s'-]+$/,
+          "Only alphabetic characters are allowed"
+        );
+      }
+
+      // Zip Code validation
+      if (
+        lowercaseLabel.includes("zip") ||
+        lowercaseLabel.includes("postal") ||
+        lowercaseLabel.includes("pin code") ||
+        lowercaseLabel.includes("pincode")
+      ) {
+        validator = validator
+          .matches(/^[0-9]+$/, "Only digits are allowed")
+          .min(3, "Zip Code is too short")
+          .max(10, "Zip Code is too long");
+      }
+
+      // Date of Birth validation
+      if (
+        field.type === "datePicker" ||
+        lowercaseLabel.includes("date of birth") ||
+        lowercaseLabel.includes("dob")
+      ) {
+        validator = Yup.mixed()
+          .test("isValidDate", "Invalid date format", (value: any) => {
+            if (!value) return !field.required;
+            return dayjs(value).isValid();
+          });
+
+        // For Date of birth, we usually disable future dates by default.
+        if (lowercaseLabel.includes("dob") || lowercaseLabel.includes("date of birth") || field.config?.disableFuture) {
+          validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
+            if (!value) return true;
+            return dayjs(value).isBefore(dayjs().endOf('day'));
+          });
+        }
+
+        if (field.config?.disablePast) {
+          validator = validator.test("noPastDate", "Date cannot be in the past", (value: any) => {
+            if (!value) return true;
+            return dayjs(value).isAfter(dayjs().startOf('day'));
+          });
+        }
       }
 
       if (field.required) {
@@ -216,13 +305,26 @@ export default function Signup() {
             `${field.label} is required`,
             (value: any) => value !== null && value !== undefined && value !== ""
           );
+        } else if (field.type === "datePicker") {
+          validator = validator.test(
+            "dateRequired",
+            `${field.label} is required`,
+            (value: any) => value !== null && value !== undefined && value !== ""
+          );
+        } else if (
+          field.type === "checkbox" ||
+          field.type === "switch" ||
+          field.type === "boolean"
+        ) {
+          validator = validator.oneOf([true], `${field.label} is required`);
         } else {
           validator = validator.required(`${field.label} is required`);
         }
       }
+
       if (
         field.type === "email" ||
-        field.label.toLowerCase().includes("email")
+        lowercaseLabel.includes("email")
       ) {
         validator = validator.email("Invalid email format");
       }
@@ -237,8 +339,31 @@ export default function Signup() {
       contestId: selectedContestId,
       countryId: selectedCountryId,
     };
+
+    let dialCode = "";
+    if (selectedCountryId && apiCountries.length > 0) {
+      const countryObj = apiCountries.find((c) => c.id === selectedCountryId);
+      if (countryObj) {
+        const matched = countries.find(
+          (c) => c.label.toLowerCase() === countryObj.name?.toLowerCase()
+        );
+        if (matched) {
+          dialCode = `+${matched.phone}`;
+        }
+      }
+    }
+
     templateFields.forEach((field) => {
-      values[field.id] = "";
+      if (
+        field.type === "telInput" ||
+        field.type === "phone" ||
+        field.type === "tel" ||
+        field.type === "phone_number"
+      ) {
+        values[field.id] = dialCode || "";
+      } else {
+        values[field.id] = "";
+      }
     });
     return values;
   };
@@ -327,6 +452,34 @@ export default function Signup() {
     },
   });
 
+  useEffect(() => {
+    if (selectedCountryId && apiCountries.length > 0) {
+      const countryObj = apiCountries.find((c) => c.id === selectedCountryId);
+      if (countryObj) {
+        const matched = countries.find(
+          (c) => c.label.toLowerCase() === countryObj.name?.toLowerCase()
+        );
+        if (matched) {
+          const newDialCode = `+${matched.phone}`;
+          templateFields.forEach((field) => {
+            if (
+              field.type === "telInput" ||
+              field.type === "phone" ||
+              field.type === "tel" ||
+              field.type === "phone_number"
+            ) {
+              const currentValue = formik.values[field.id];
+              // Only update if it's empty or just a country code (so we don't wipe user typed numbers when they just change country... actually wait, changing country should change the prefix)
+              if (!currentValue || /^\+\d{1,4}$/.test(currentValue)) {
+                formik.setFieldValue(field.id, newDialCode);
+              }
+            }
+          });
+        }
+      }
+    }
+  }, [selectedCountryId, apiCountries, templateFields]);
+
   // Handle contest selection change to fetch dynamic fields
   useEffect(() => {
     const contestId = formik.values.contestId;
@@ -410,8 +563,8 @@ export default function Signup() {
       <Container maxWidth="md">
         <form onSubmit={formik.handleSubmit} autoComplete="off">
           {/* Dummy fields to intercept browser autofill */}
-          <input type="email" name="fakeemailremembered" style={{ display: 'none' }} />
-          <input type="password" name="fakepasswordremembered" style={{ display: 'none' }} />
+          <input type="text" name="fakeusernameremembered" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1 }} tabIndex={-1} autoComplete="username" />
+          <input type="password" name="fakepasswordremembered" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1 }} tabIndex={-1} autoComplete="current-password" />
 
           <Paper
             elevation={0}
@@ -449,10 +602,7 @@ export default function Signup() {
                   <Grid size={{ xs: 12, md: 6 }}>
                     <FormControl
                       fullWidth
-                      error={
-                        formik.touched.countryId &&
-                        Boolean(formik.errors.countryId)
-                      }
+                      error={Boolean(getFieldError("countryId"))}
                     >
                       <InputLabel
                         id="country-select-label"
@@ -470,7 +620,30 @@ export default function Signup() {
                         value={formik.values.countryId}
                         onChange={(e) => {
                           formik.handleChange(e);
-                          setSelectedCountryId(e.target.value);
+                          const newCountryId = e.target.value;
+                          setSelectedCountryId(newCountryId);
+
+                          const countryObj = apiCountries.find((c) => c.id === newCountryId);
+                          if (countryObj) {
+                            const matched = countries.find(
+                              (c) => c.label.toLowerCase() === countryObj.name?.toLowerCase()
+                            );
+                            if (matched) {
+                              setSelectedCountryCode(matched.code);
+                              const dialCode = `+${matched.phone}`;
+                              // Find all telInput fields in templateFields and set their value
+                              templateFields.forEach((field) => {
+                                if (
+                                  field.type === "telInput" ||
+                                  field.type === "phone" ||
+                                  field.type === "tel" ||
+                                  field.type === "phone_number"
+                                ) {
+                                  formik.setFieldValue(field.id, dialCode);
+                                }
+                              });
+                            }
+                          }
                         }}
                         onBlur={formik.handleBlur}
                         label="Country"
@@ -497,9 +670,9 @@ export default function Signup() {
                           </MenuItem>
                         ))}
                       </Select>
-                      {formik.touched.countryId && formik.errors.countryId && (
+                      {getFieldError("countryId") && (
                         <FormHelperText>
-                          {formik.errors.countryId as string}
+                          {getFieldError("countryId")}
                         </FormHelperText>
                       )}
                     </FormControl>
@@ -509,10 +682,7 @@ export default function Signup() {
                   <Grid size={{ xs: 12, md: 6 }}>
                     <FormControl
                       fullWidth
-                      error={
-                        formik.touched.contestId &&
-                        Boolean(formik.errors.contestId)
-                      }
+                      error={Boolean(getFieldError("contestId"))}
                     >
                       <InputLabel
                         id="contest-select-label"
@@ -543,9 +713,9 @@ export default function Signup() {
                           </MenuItem>
                         ))}
                       </Select>
-                      {formik.touched.contestId && formik.errors.contestId && (
+                      {getFieldError("contestId") && (
                         <FormHelperText>
-                          {formik.errors.contestId as string}
+                          {getFieldError("contestId")}
                         </FormHelperText>
                       )}
                     </FormControl>
@@ -640,10 +810,7 @@ export default function Signup() {
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
                           fullWidth
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                         >
                           <InputLabel
                             id={`label-${field.id}`}
@@ -697,10 +864,9 @@ export default function Signup() {
                                   </MenuItem>
                                 ))}
                           </Select>
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
+                          {getFieldError(field.id) && (
                               <FormHelperText>
-                                {formik.errors[field.id] as string}
+                                {getFieldError(field.id)}
                               </FormHelperText>
                             )}
                         </FormControl>
@@ -813,15 +979,14 @@ export default function Signup() {
                               </IconButton>
                             </Box>
                           )}
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText
-                                error
-                                sx={{ textAlign: "center", mt: 1 }}
-                              >
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText
+                              error
+                              sx={{ textAlign: "center", mt: 1 }}
+                            >
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </Box>
                       </Grid>
                     );
@@ -832,10 +997,7 @@ export default function Signup() {
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
                           component="fieldset"
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                         >
                           <FormLabel
                             component="legend"
@@ -904,12 +1066,11 @@ export default function Signup() {
                               </>
                             )}
                           </RadioGroup>
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText>
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText>
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </FormControl>
                       </Grid>
                     );
@@ -928,26 +1089,30 @@ export default function Signup() {
                           id={field.id}
                           name={field.id}
                           label={field.label}
-                          defaultCountry={
-                            (field.config?.defaultCountry as any) || "IN"
-                          }
-                          onlyCountries={
-                            (field.config?.onlyCountries as any) || undefined
-                          }
+                          defaultCountry={selectedCountryCode as any}
+                          forceCallingCode
                           value={formik.values[field.id] || ""}
-                          onChange={(value) =>
-                            formik.setFieldValue(field.id, value)
-                          }
+                          onChange={(value, info) => {
+                            if (info && info.countryCode) {
+                              const countryMaxLengths: Record<string, number> = {
+                                IN: 10,
+                                AE: 9,
+                                US: 10,
+                                GB: 10,
+                              };
+                              const maxLen = countryMaxLengths[info.countryCode];
+                              if (maxLen) {
+                                const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
+                                if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
+                                  return; // prevent typing more digits
+                                }
+                              }
+                            }
+                            formik.setFieldValue(field.id, value);
+                          }}
                           onBlur={() => formik.setFieldTouched(field.id, true)}
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
-                          helperText={
-                            ((formik.touched[field.id] &&
-                              formik.errors[field.id]) as string) ||
-                            field.helperText
-                          }
+                          error={Boolean(getFieldError(field.id))}
+                          helperText={getFieldError(field.id) || field.helperText}
                           sx={textFieldStyles}
                         />
                       </Grid>
@@ -958,10 +1123,7 @@ export default function Signup() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                           sx={{ height: "100%", justifyContent: "center" }}
                         >
                           <FormControlLabel
@@ -979,12 +1141,11 @@ export default function Signup() {
                             }
                             label={field.label}
                           />
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText>
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText>
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </FormControl>
                       </Grid>
                     );
@@ -994,10 +1155,7 @@ export default function Signup() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                           sx={{ height: "100%", justifyContent: "center" }}
                         >
                           <FormControlLabel
@@ -1018,12 +1176,11 @@ export default function Signup() {
                             }
                             label={field.label}
                           />
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText>
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText>
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </FormControl>
                       </Grid>
                     );
@@ -1034,10 +1191,7 @@ export default function Signup() {
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
                           fullWidth
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                         >
                           <Typography
                             variant="body2"
@@ -1065,12 +1219,11 @@ export default function Signup() {
                               mx: "auto",
                             }}
                           />
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText>
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText>
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </FormControl>
                       </Grid>
                     );
@@ -1080,10 +1233,7 @@ export default function Signup() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <FormControl
-                          error={
-                            formik.touched[field.id] &&
-                            Boolean(formik.errors[field.id])
-                          }
+                          error={Boolean(getFieldError(field.id))}
                           sx={{ height: "100%", justifyContent: "center" }}
                         >
                           <Typography
@@ -1102,12 +1252,11 @@ export default function Signup() {
                             max={field.config?.max || 5}
                             sx={{ color: colors.PRIMARY }}
                           />
-                          {formik.touched[field.id] &&
-                            formik.errors[field.id] && (
-                              <FormHelperText>
-                                {formik.errors[field.id] as string}
-                              </FormHelperText>
-                            )}
+                          {getFieldError(field.id) && (
+                            <FormHelperText>
+                              {getFieldError(field.id)}
+                            </FormHelperText>
+                          )}
                         </FormControl>
                       </Grid>
                     );
@@ -1130,15 +1279,8 @@ export default function Signup() {
                               {...params}
                               label={field.label}
                               variant="outlined"
-                              error={
-                                formik.touched[field.id] &&
-                                Boolean(formik.errors[field.id])
-                              }
-                              helperText={
-                                ((formik.touched[field.id] &&
-                                  formik.errors[field.id]) as string) ||
-                                field.helperText
-                              }
+                              error={Boolean(getFieldError(field.id))}
+                              helperText={getFieldError(field.id) || field.helperText}
                               sx={textFieldStyles}
                             />
                           )}
@@ -1171,13 +1313,9 @@ export default function Signup() {
                             slotProps={{
                               textField: {
                                 fullWidth: true,
-                                error:
-                                  formik.touched[field.id] &&
-                                  Boolean(formik.errors[field.id]),
-                                helperText:
-                                  ((formik.touched[field.id] &&
-                                    formik.errors[field.id]) as string) ||
-                                  field.helperText,
+                                onBlur: () => formik.setFieldTouched(field.id, true),
+                                error: Boolean(getFieldError(field.id)),
+                                helperText: getFieldError(field.id) || field.helperText,
                                 sx: textFieldStyles,
                               },
                             }}
@@ -1232,20 +1370,13 @@ export default function Signup() {
                             : field.type || "text"
                         }
                         variant="outlined"
-                        autoComplete="off"
+                        autoComplete={isPassword ? "new-password" : "off"}
                         sx={textFieldStyles}
                         value={formik.values[field.id] || ""}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
-                        error={
-                          formik.touched[field.id] &&
-                          Boolean(formik.errors[field.id])
-                        }
-                        helperText={
-                          ((formik.touched[field.id] &&
-                            formik.errors[field.id]) as string) ||
-                          field.helperText
-                        }
+                        error={Boolean(getFieldError(field.id))}
+                        helperText={getFieldError(field.id) || field.helperText}
                         slotProps={
                           isPassword
                             ? {
@@ -1311,6 +1442,17 @@ export default function Signup() {
                       isLoadingTemplate ||
                       !formik.values.contestId
                     }
+                    onClick={() => {
+                      // Touch all form fields to display validation errors immediately
+                      const touchedFields: Record<string, boolean> = {
+                        contestId: true,
+                        countryId: true,
+                      };
+                      templateFields.forEach(f => {
+                        touchedFields[f.id] = true;
+                      });
+                      formik.setTouched(touchedFields);
+                    }}
                     fullWidth
                     sx={{
                       py: 1.5,

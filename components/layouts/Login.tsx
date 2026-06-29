@@ -116,8 +116,8 @@ const Login = () => {
             </Box>
 
             {/* Dummy fields to intercept browser autofill */}
-            <input type="email" name="fakeemailremembered" style={{ display: 'none' }} />
-            <input type="password" name="fakepasswordremembered" style={{ display: 'none' }} />
+            <input type="text" name="fakeusernameremembered" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1 }} tabIndex={-1} autoComplete="username" />
+            <input type="password" name="fakepasswordremembered" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1 }} tabIndex={-1} autoComplete="current-password" />
 
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
               <TextField
@@ -166,7 +166,7 @@ const Login = () => {
                   formik.touched.password && Boolean(formik.errors.password)
                 }
                 helperText={formik.touched.password && formik.errors.password}
-                autoComplete="off"
+                autoComplete="new-password"
               />
 
               <Box

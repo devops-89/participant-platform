@@ -2,7 +2,10 @@ import * as Yup from "yup";
 
 export const Login_Validation = Yup.object({
   email: Yup.string()
-    .email("Please Enter Valid Email")
+    .matches(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
+      "Please Enter Valid Email"
+    )
     .required("Please Enter Email"),
   password: Yup.string().required("Please Enter Password"),
 });
@@ -11,7 +14,10 @@ export const AddUser_Validation = Yup.object({
   firstName: Yup.string().required("Please Enter First Name"),
   lastName: Yup.string().required("Please Enter Last Name"),
   email: Yup.string()
-    .email("Please Enter Valid Email")
+    .matches(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
+      "Please Enter Valid Email"
+    )
     .required("Please Enter Email"),
   phoneNumber: Yup.string()
     .matches(/^[0-9+\s]+$/, "Invalid Phone Number")
@@ -21,6 +27,7 @@ export const AddUser_Validation = Yup.object({
   password: Yup.string()
     .min(8, "Password must be at least 8 characters")
     .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+    .matches(/[a-z]/, "Password must include at least one lowercase letter")
     .matches(/[0-9]/, "Password must include at least one number")
     .matches(
       /[!@#$%^&*(),.?":{}|<>]/,
@@ -48,7 +55,10 @@ export const CONTEST_VALIDATION = Yup.object({
 
 export const ForgotPassword_Validation = Yup.object({
   email: Yup.string()
-    .email("Please Enter Valid Email")
+    .matches(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
+      "Please Enter Valid Email"
+    )
     .required("Please Enter Email"),
 });
 
@@ -57,6 +67,7 @@ export const ResetPassword_Validation = Yup.object({
   password: Yup.string()
     .min(8, "Password must be at least 8 characters")
     .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+    .matches(/[a-z]/, "Password must include at least one lowercase letter")
     .matches(/[0-9]/, "Password must include at least one number")
     .matches(
       /[!@#$%^&*(),.?":{}|<>]/,

@@ -94,6 +94,56 @@ const AddEntry = () => {
 
         if (fetchedContestId) {
           setContestId(fetchedContestId);
+
+          // Check if this participant already has an entry for this contest
+          let userObj: any = null;
+          try {
+            const meRes = await AuthControllers.getParticipants();
+            if (meRes?.data) {
+              userObj = meRes.data;
+              localStorage.setItem("user", JSON.stringify(userObj));
+            }
+          } catch (e) {
+            console.error("Failed to fetch /me", e);
+          }
+
+          if (!userObj) {
+            try {
+              const userStr = localStorage.getItem("user");
+              if (userStr) userObj = JSON.parse(userStr);
+            } catch (e) {}
+          }
+
+          if (userObj) {
+            if (userObj.status?.toLowerCase() === "banned") {
+              showSnackbar("You have been banned. You cannot submit entries.", "error");
+              router.push("/entries");
+              return;
+            }
+            if (userObj.participants) {
+              const participantObj = userObj.participants.find(
+                (p: any) => p.contest_id === fetchedContestId || (p.contest && (p.contest.id === fetchedContestId || p.contest._id === fetchedContestId))
+              );
+              if (participantObj) {
+                const contestStatus = participantObj.contest?.status;
+                if (contestStatus && contestStatus.toLowerCase() !== "published") {
+                  showSnackbar("This contest is not active or published. You cannot submit entries for it.", "warning");
+                  router.push("/entries");
+                  return;
+                }
+                if (participantObj.status?.toLowerCase() === "banned") {
+                  showSnackbar("You have been banned from this contest. You cannot submit entries for it.", "error");
+                  router.push("/entries");
+                  return;
+                }
+                if (participantObj.entries && participantObj.entries.length > 0) {
+                  showSnackbar("You have already submitted an entry for this contest.", "warning");
+                  router.push("/entries");
+                  return;
+                }
+              }
+            }
+          }
         }
 
         if (templateFieldsFromApi) {
@@ -109,7 +159,7 @@ const AddEntry = () => {
       }
     };
     fetchTemplate();
-  }, [showSnackbar]);
+  }, [showSnackbar, router]);
 
   const submitForm = async (values: any, status: string) => {
     try {

@@ -1,22 +1,29 @@
 "use client";
 
-import { useAppTheme } from "@/context/ThemeContext";
+import React, { useState, useRef, useEffect } from "react";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
   Alert,
   Box,
   Button,
   Collapse,
   Container,
+  IconButton,
+  InputAdornment,
   Paper,
   TextField,
   Typography,
 } from "@mui/material";
-import { useRouter, useSearchParams } from "next/navigation";
-import React, { useState, useRef, useEffect } from "react";
-import { AuthControllers } from "../../api/authControllers";
 
+import { useFormik } from "formik";
+import { useRouter, useSearchParams } from "next/navigation";
+import * as Yup from "yup";
+
+import { useAppTheme } from "@/context/ThemeContext";
+import { AuthControllers } from "../../api/authControllers";
 import { useSnackbar } from "@/context/SnackbarContext";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
+import { ResetPassword_Validation } from "@/utils/validation";
 
 export default function VerifyOtp() {
   const { colors } = useAppTheme();
@@ -29,11 +36,14 @@ export default function VerifyOtp() {
   const { isChecking } = useGuestGuard();
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Focus the first input on mount
+  const [timer, setTimer] = useState(300);
+  const [canResend, setCanResend] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   useEffect(() => {
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
@@ -41,16 +51,136 @@ export default function VerifyOtp() {
   }, []);
 
   useEffect(() => {
-    if (apiError) {
-      showSnackbar(apiError, "error");
+    if (timer > 0) {
+      const interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setCanResend(true);
     }
-  }, [apiError, showSnackbar]);
+  }, [timer]);
+
+  const handleResendOtp = async () => {
+    try {
+      const emailParam = email || localStorage.getItem("resetEmail");
+      if (!emailParam) {
+        showSnackbar("Email not found. Please try again.", "error");
+        return;
+      }
+      
+      setLoading(true);
+      await AuthControllers.forgotPassword({ email: emailParam });
+      showSnackbar("OTP resent successfully", "success");
+      setTimer(300);
+      setCanResend(false);
+    } catch (error: any) {
+      showSnackbar(
+        error?.response?.data?.message || "Failed to resend OTP",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formik = useFormik({
+    initialValues: {
+      password: "",
+      confirmPassword: "",
+    },
+    validationSchema: flow === "forgot" ? Yup.object({
+      password: Yup.string()
+        .min(8, "Password must be at least 8 characters")
+        .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+        .matches(/[a-z]/, "Password must include at least one lowercase letter")
+        .matches(/[0-9]/, "Password must include at least one number")
+        .matches(
+          /[!@#$%^&*(),.?":{}|<>]/,
+          "Password must include at least one special character",
+        )
+        .required("Please Enter Password"),
+      confirmPassword: Yup.string()
+        .oneOf([Yup.ref("password")], "Passwords must match")
+        .required("Please Confirm Your Password"),
+    }) : Yup.object({}),
+
+    onSubmit: async (values) => {
+      try {
+        setLoading(true);
+        const otpValue = otp.join("");
+        
+        if (otpValue.length !== 6) {
+          showSnackbar("Please enter all 6 digits of the OTP.", "error");
+          setLoading(false);
+          return;
+        }
+
+        const emailParam = email || localStorage.getItem("resetEmail") || "";
+
+        if (flow === "forgot") {
+          const response = await AuthControllers.resetPassword({
+            email: emailParam,
+            otp: otpValue,
+            password: values.password,
+          });
+
+          showSnackbar(
+            response?.data?.message || "Password reset successfully!",
+            "success"
+          );
+
+          setTimeout(() => {
+            router.push("/");
+          }, 1000);
+          return;
+        }
+
+        const payload = {
+          email: emailParam,
+          otp: otpValue
+        };
+
+        const res = await AuthControllers.verifyOtp(payload);
+        showSnackbar("OTP verified successfully", "success");
+        
+        const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
+        if (token) {
+          localStorage.setItem("accessToken", token);
+        }
+        
+        const refreshToken = res?.data?.data?.refreshToken || res?.data?.refreshToken;
+        if (refreshToken) {
+          localStorage.setItem("refreshToken", refreshToken);
+        }
+
+        const userData = res?.data?.data?.user || res?.data?.user;
+        if (userData) {
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
+        
+        router.push("/dashboard");
+      } catch (err: any) {
+        showSnackbar(
+          err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.",
+          "error"
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
 
   const handleChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
+    if (!/^\d*$/.test(value)) return;
 
     const newOtp = [...otp];
-    // Allow pasting full 6 digits
     if (value.length === 6) {
       const chars = value.split("");
       for (let i = 0; i < 6; i++) {
@@ -64,7 +194,6 @@ export default function VerifyOtp() {
     newOtp[index] = value.substring(value.length - 1);
     setOtp(newOtp);
 
-    // Move to next input if value is entered
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -72,68 +201,24 @@ export default function VerifyOtp() {
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
-      // Move to previous input on backspace
       inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otpValue = otp.join("");
-    
-    if (otpValue.length !== 6) {
-      setApiError("Please enter all 6 digits of the OTP.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setApiError(null);
-
-      const payload = {
-        email: email || "",
-        otp: otpValue
-      };
-
-      if (flow === "forgot") {
-        // Skip calling verify-otp API for forgot password flow.
-        // The reset-password API will validate the OTP.
-        router.push(`/reset-password?email=${encodeURIComponent(email || "")}&otp=${encodeURIComponent(otpValue)}`);
-        return;
-      }
-
-      const res = await AuthControllers.verifyOtp(payload);
-      console.log("Verify OTP API Response:", res?.data);
-      showSnackbar("OTP verified successfully", "success");
-      
-      // Store token if returned
-      const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
-      if (token) {
-        localStorage.setItem("accessToken", token);
-      }
-      
-      const refreshToken = res?.data?.data?.refreshToken || res?.data?.refreshToken;
-      if (refreshToken) {
-        localStorage.setItem("refreshToken", refreshToken);
-      }
-
-      const userData = res?.data?.data?.user || res?.data?.user;
-      if (userData) {
-        localStorage.setItem("user", JSON.stringify(userData));
-      }
-      
-      router.push("/dashboard");
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
   if (isChecking) {
     return null;
   }
+
+  const textFieldStyles = {
+    "& .MuiOutlinedInput-root": {
+      color: colors.TEXT_PRIMARY,
+      "& fieldset": { borderColor: colors.BORDER },
+      "&:hover fieldset": { borderColor: colors.PRIMARY },
+      "&.Mui-focused fieldset": { borderColor: colors.PRIMARY },
+    },
+    "& .MuiInputLabel-root": { color: colors.TEXT_SECONDARY },
+    "& .MuiInputLabel-root.Mui-focused": { color: colors.PRIMARY },
+  };
 
   return (
     <Box
@@ -147,7 +232,7 @@ export default function VerifyOtp() {
       }}
     >
       <Container maxWidth="sm">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={formik.handleSubmit}>
           <Paper
             elevation={0}
             sx={{
@@ -171,7 +256,7 @@ export default function VerifyOtp() {
                 mb: 1
               }}
             >
-              Verify Your Email
+              {flow === "forgot" ? "Reset Password" : "Verify Your Email"}
             </Typography>
             <Typography variant="body1" sx={{ color: colors.TEXT_SECONDARY, mb: 4 }}>
               We sent a 6-digit verification code to<br />
@@ -205,7 +290,7 @@ export default function VerifyOtp() {
                   }}
                   slotProps={{
                     htmlInput: {
-                      maxLength: 6, // to allow pasting 6 digits
+                      maxLength: 6,
                       inputMode: "numeric"
                     }
                   }}
@@ -213,13 +298,53 @@ export default function VerifyOtp() {
               ))}
             </Box>
 
+            {flow === "forgot" && (
+              <Box sx={{ mt: 4, textAlign: "left" }}>
+                <TextField
+                  fullWidth margin="normal" label="New Password" name="password" type={showPassword ? "text" : "password"} sx={textFieldStyles}
+                  value={formik.values.password} onChange={formik.handleChange} onBlur={formik.handleBlur}
+                  error={formik.touched.password && Boolean(formik.errors.password)}
+                  helperText={formik.touched.password && formik.errors.password as string}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => setShowPassword(!showPassword)}>
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  fullWidth margin="normal" label="Confirm Password" name="confirmPassword" type={showConfirmPassword ? "text" : "password"} sx={textFieldStyles}
+                  value={formik.values.confirmPassword} onChange={formik.handleChange} onBlur={formik.handleBlur}
+                  error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
+                  helperText={formik.touched.confirmPassword && formik.errors.confirmPassword as string}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Box>
+            )}
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading || otp.join("").length !== 6}
+              disabled={loading || otp.join("").length !== 6}
               sx={{
                 py: 1.5,
+                mt: flow === "forgot" ? 4 : 0,
                 bgcolor: colors.PRIMARY,
                 color: "white",
                 fontWeight: 600,
@@ -240,19 +365,26 @@ export default function VerifyOtp() {
                 },
               }}
             >
-              {isLoading ? "Verifying..." : "Verify OTP"}
+              {loading ? (flow === "forgot" ? "Resetting..." : "Verifying...") : (flow === "forgot" ? "Reset Password" : "Verify OTP")}
             </Button>
             
             <Box sx={{ mt: 3 }}>
               <Typography variant="body2" sx={{ color: colors.TEXT_SECONDARY }}>
                 Didn't receive the code?{" "}
-                <Button 
-                  variant="text" 
-                  sx={{ textTransform: "none", p: 0, minWidth: "auto", fontWeight: 600 }}
-                  onClick={() => router.push("/signup")}
-                >
-                  Go Back
-                </Button>
+                {canResend ? (
+                  <Button 
+                    variant="text" 
+                    sx={{ textTransform: "none", p: 0, minWidth: "auto", fontWeight: 600, color: colors.PRIMARY, "&:hover": { bgcolor: "transparent", textDecoration: "underline" } }}
+                    onClick={handleResendOtp}
+                    disabled={loading}
+                  >
+                    Resend OTP
+                  </Button>
+                ) : (
+                  <Typography component="span" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
+                    Resend in {formatTimer(timer)}
+                  </Typography>
+                )}
               </Typography>
             </Box>
           </Paper>

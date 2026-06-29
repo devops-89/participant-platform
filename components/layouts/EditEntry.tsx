@@ -11,6 +11,34 @@ import { useSnackbar } from "@/context/SnackbarContext";
 
 import { AuthControllers } from "@/api/authControllers";
 
+const extractS3Key = (url: string) => {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
+  
+  try {
+    const parsedUrl = new URL(url);
+    const path = parsedUrl.pathname;
+    
+    const entriesIdx = path.indexOf('/entries/');
+    if (entriesIdx !== -1) {
+      return path.slice(entriesIdx + 1);
+    }
+    const usersIdx = path.indexOf('/users/');
+    if (usersIdx !== -1) {
+      return path.slice(usersIdx + 1);
+    }
+    
+    let cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const segments = cleanPath.split('/');
+    if (segments.length > 1 && (segments[0].includes('bucket') || segments[0].includes('launchpad'))) {
+      cleanPath = segments.slice(1).join('/');
+    }
+    return cleanPath;
+  } catch (e) {
+    return url;
+  }
+};
+
 const EditEntry = ({ entryId }: { entryId: string }) => {
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -79,6 +107,50 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
             try {
               const entryRes = await entryControllers.getEntryById(fetchedContestId, entryId);
               const actualEntry = entryRes?.data || entryRes;
+
+              // Check if contest is active/published
+              const contestStatus = actualEntry?.contest?.status;
+              if (contestStatus && contestStatus.toLowerCase() !== "published") {
+                showSnackbar("This contest is no longer active or published. You cannot edit this entry.", "warning");
+                router.push("/entries");
+                return;
+              }
+
+              // Check if user is banned globally or specifically from this contest
+              let userObj: any = null;
+              try {
+                const meRes = await AuthControllers.getParticipants();
+                if (meRes?.data) {
+                  userObj = meRes.data;
+                  localStorage.setItem("user", JSON.stringify(userObj));
+                }
+              } catch (e) {
+                console.error("Failed to fetch /me", e);
+              }
+
+              if (!userObj) {
+                try {
+                  const userStr = localStorage.getItem("user");
+                  if (userStr) userObj = JSON.parse(userStr);
+                } catch (e) {}
+              }
+
+              if (userObj) {
+                if (userObj.status?.toLowerCase() === "banned") {
+                  showSnackbar("You have been banned. You cannot edit entries.", "error");
+                  router.push("/entries");
+                  return;
+                }
+                const participantObj = userObj.participants?.find(
+                  (p: any) => p.contest_id === fetchedContestId || p.contest?.id === fetchedContestId || p.contest?._id === fetchedContestId
+                );
+                if (participantObj && participantObj.status?.toLowerCase() === "banned") {
+                  showSnackbar("You have been banned from this contest. You cannot edit this entry.", "error");
+                  router.push("/entries");
+                  return;
+                }
+              }
+
               if (actualEntry?.submission?.data) {
                  let sData = actualEntry.submission.data;
                  if (typeof sData === 'string') {
@@ -106,7 +178,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
       }
     };
     fetchTemplate();
-  }, [showSnackbar]);
+  }, [showSnackbar, router]);
 
   const submitForm = async (values: any, status: string) => {
     try {
@@ -117,15 +189,22 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
         const value = values[key];
         const fieldDef = templateFields.find(f => f.id === key);
         
-        if (value !== undefined && value !== null && value !== "") {
+        if (value !== undefined && value !== null) {
           if (fieldDef?.type === "file_upload" || fieldDef?.type === "file" || fieldDef?.type === "image") {
             if (value instanceof File) {
               formData.append(key, value);
             } else if (typeof value === "string") {
-              formData.append(key, value);
+              const originalValue = initialData[key] || (fieldDef?.label ? initialData[fieldDef.label] : null) || (fieldDef?.label ? initialData[fieldDef.label.trim()] : null) || value;
+              formData.append(key, originalValue);
+            } else if (value === null) {
+              formData.append(key, "");
             }
           } else {
-            formData.append(key, value);
+            if (value !== "") {
+              formData.append(key, value);
+            } else {
+              formData.append(key, "");
+            }
           }
         }
       });
