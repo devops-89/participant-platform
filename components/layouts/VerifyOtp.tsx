@@ -39,7 +39,7 @@ export default function VerifyOtp() {
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const [timer, setTimer] = useState(300);
+  const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -70,9 +70,9 @@ export default function VerifyOtp() {
       }
       
       setLoading(true);
-      await AuthControllers.forgotPassword({ email: emailParam });
+      await AuthControllers.resendOtp({ email: emailParam });
       showSnackbar("OTP resent successfully", "success");
-      setTimer(300);
+      setTimer(60);
       setCanResend(false);
     } catch (error: any) {
       showSnackbar(

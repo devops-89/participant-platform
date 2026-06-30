@@ -18,9 +18,17 @@ const Header = () => {
   const [userAvatar, setUserAvatar] = useState("");
   const { showSnackbar } = useSnackbar();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const refreshToken = localStorage.getItem("refreshToken") || "";
+      await AuthControllers.logout({ refreshToken });
+    } catch (err) {
+      console.error("Logout API failed, continuing with local cleanup...", err);
+    }
+    
     localStorage.setItem("intentionalLogout", "true");
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
     showSnackbar("Logged out successfully!", "success");
     router.push("/");

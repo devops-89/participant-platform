@@ -1,7 +1,7 @@
-import { authPublicApi, userPublicApi, userSecuredApi } from "./config";
+import { authPublicApi, authSecuredApi, userPublicApi, userSecuredApi } from "./config";
 
 export const AuthControllers = {
-  registerParticipants: async (data: any) => {
+  registerParticipants: async (data: Record<string, unknown>) => {
     try {
       let result = await userPublicApi.post("create-participant", data);
       return result;
@@ -9,9 +9,19 @@ export const AuthControllers = {
       throw error;
     }
   },
-  login: async (payload: any) => {
+  login: async (payload: Record<string, unknown>) => {
     try {
       let result = await authPublicApi.post("login", payload);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  },
+  logout: async (payload: Record<string, unknown> = {}) => {
+    try {
+      // Assuming authSecuredApi is what we should use. 
+      // If it's not exported from config, we will check next.
+      let result = await authSecuredApi.post("logout", payload);
       return result;
     } catch (error) {
       throw error;
@@ -25,9 +35,17 @@ export const AuthControllers = {
       throw error;
     }
   },
-  verifyOtp: async (payload: { email?: string; otp: string; [key: string]: any }) => {
+  verifyOtp: async (payload: { email?: string; otp: string; [key: string]: unknown }) => {
     try {
       let result = await userPublicApi.post("verify-otp", payload);
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  },
+  resendOtp: async (payload: Record<string, unknown>) => {
+    try {
+      let result = await authPublicApi.post("resend-otp", payload);
       return result;
     } catch (error) {
       throw error;
@@ -49,7 +67,7 @@ export const AuthControllers = {
       throw error;
     }
   },
-  resetPassword: async (payload: any) => {
+  resetPassword: async (payload: Record<string, unknown>) => {
     try {
       let result = await authPublicApi.post("reset-password", payload);
       return result;
@@ -57,7 +75,7 @@ export const AuthControllers = {
       throw error;
     }
   },
-  updateUserDetails: async (id: string, payload: any) => {
+  updateUserDetails: async (id: string, payload: Record<string, unknown> | FormData) => {
     try {
       let result = await userSecuredApi.put(`/${id}`, payload, {
         headers: {
