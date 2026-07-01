@@ -174,10 +174,11 @@ export default function VerifyOtp() {
         
         router.push("/dashboard");
       } catch (err: any) {
-        showSnackbar(
-          err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.",
-          "error"
-        );
+        let errorMessage = err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.";
+        if (errorMessage.toLowerCase().includes("invalid") || errorMessage.toLowerCase().includes("otp") || errorMessage.toLowerCase().includes("validation")) {
+          errorMessage = "Invalid OTP. Please enter the correct verification code.";
+        }
+        showSnackbar(errorMessage, "error");
       } finally {
         setLoading(false);
       }
