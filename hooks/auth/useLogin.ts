@@ -38,6 +38,11 @@ export const useLogin = () => {
         localStorage.setItem('accessToken', token);
       }
       
+      const refreshToken = res?.data?.data?.refreshToken || res?.data?.refreshToken;
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
+      
       const userData = res?.data?.data?.user || res?.data?.user || { role: 'participant', ...values };
       localStorage.setItem('user', JSON.stringify(userData));
       

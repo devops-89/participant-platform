@@ -35,7 +35,8 @@ import { useFormik } from "formik";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
+import examples from "libphonenumber-js/examples.mobile.json";
 import * as Yup from "yup";
 import { countries } from "@/utils/constant";
 import { AuthControllers } from "../../api/authControllers";
@@ -222,26 +223,23 @@ export default function Signup() {
 
       const lowercaseLabel = field.label.toLowerCase();
 
-      // Name fields validation: allow only alphabets and spaces/hyphens
+      // Name fields validation: allow only alphabets and spaces
       if (
         lowercaseLabel.includes("name") ||
         lowercaseLabel.includes("first name") ||
         lowercaseLabel.includes("last name")
       ) {
         validator = validator.matches(
-          /^[A-Za-z\s'-]+$/,
-          "Only alphabetic characters are allowed"
+          /^[A-Za-z\s]+$/,
+          "Only alphabetic characters and spaces are allowed"
         );
       }
 
       // Innovation title validation
       if (lowercaseLabel === "innovation title") {
         validator = validator.matches(
-          /.*[a-zA-Z].*/,
-          "Must contain at least one letter"
-        ).matches(
-          /^[A-Za-z0-9\s.,&'-]+$/,
-          "Only letters, numbers, and basic punctuation are allowed"
+          /^[A-Za-z\s]+$/,
+          "Only alphabetic characters and spaces are allowed"
         );
       }
 
@@ -318,7 +316,11 @@ export default function Signup() {
         ) {
           validator = validator.oneOf([true], `${field.label} is required`);
         } else {
-          validator = validator.required(`${field.label} is required`);
+          validator = validator.test(
+            "required-trim",
+            `${field.label} is required`,
+            (value: any) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
+          );
         }
       }
 
@@ -326,7 +328,10 @@ export default function Signup() {
         field.type === "email" ||
         lowercaseLabel.includes("email")
       ) {
-        validator = validator.email("Invalid email format");
+        validator = validator.matches(
+          /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
+          "Invalid email format"
+        );
       }
       shape[field.id] = validator;
     });
@@ -389,8 +394,7 @@ export default function Signup() {
               key !== "contestId" &&
               key !== "countryId" &&
               values[key] !== undefined &&
-              values[key] !== null &&
-              values[key] !== ""
+              values[key] !== null
             ) {
               payload.append(`formData[${key}]`, values[key]);
             }
@@ -403,8 +407,7 @@ export default function Signup() {
               key !== "contestId" &&
               key !== "countryId" &&
               values[key] !== undefined &&
-              values[key] !== null &&
-              values[key] !== ""
+              values[key] !== null
             ) {
               formData[key] = values[key];
             }
@@ -1094,18 +1097,11 @@ export default function Signup() {
                           value={formik.values[field.id] || ""}
                           onChange={(value, info) => {
                             if (info && info.countryCode) {
-                              const countryMaxLengths: Record<string, number> = {
-                                IN: 10,
-                                AE: 9,
-                                US: 10,
-                                GB: 10,
-                              };
-                              const maxLen = countryMaxLengths[info.countryCode];
-                              if (maxLen) {
-                                const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
-                                if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
-                                  return; // prevent typing more digits
-                                }
+                              const example = getExampleNumber(info.countryCode as any, examples);
+                              const maxLen = example ? example.nationalNumber.length : 15;
+                              const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
+                              if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
+                                return;
                               }
                             }
                             formik.setFieldValue(field.id, value);
@@ -1452,6 +1448,19 @@ export default function Signup() {
                         touchedFields[f.id] = true;
                       });
                       formik.setTouched(touchedFields);
+
+                      // Scroll to the first field with an error
+                      formik.validateForm().then((errors) => {
+                        const errorKeys = Object.keys(errors);
+                        if (errorKeys.length > 0) {
+                          // Try to find the element by ID
+                          const firstErrorElement = document.getElementById(errorKeys[0]);
+                          if (firstErrorElement) {
+                            firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            firstErrorElement.focus();
+                          }
+                        }
+                      });
                     }}
                     fullWidth
                     sx={{

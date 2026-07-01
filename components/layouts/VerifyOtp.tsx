@@ -131,6 +131,10 @@ export default function VerifyOtp() {
             password: values.password,
           });
 
+          if (response.data && response.data.success === false) {
+            throw new Error(response.data.message || "Invalid OTP or OTP expired");
+          }
+
           showSnackbar(
             response?.data?.message || "Password reset successfully!",
             "success"
@@ -148,6 +152,9 @@ export default function VerifyOtp() {
         };
 
         const res = await AuthControllers.verifyOtp(payload);
+        if (res.data && res.data.success === false) {
+          throw new Error(res.data.message || "Invalid OTP or OTP expired");
+        }
         showSnackbar("OTP verified successfully", "success");
         
         const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;

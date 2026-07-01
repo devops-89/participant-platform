@@ -32,6 +32,8 @@ import dayjs from "dayjs";
 import { useFormik } from "formik";
 import { useEffect, useState } from "react";
 import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
+import examples from "libphonenumber-js/examples.mobile.json";
 import * as Yup from "yup";
 import { AuthControllers } from "../../api/authControllers";
 import { ContestTemplateField } from "../../types/user";
@@ -47,6 +49,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [templateFields, setTemplateFields] = useState<ContestTemplateField[]>([]);
   const [userData, setUserData] = useState<any>(null);
+  const [apiCountries, setApiCountries] = useState<any[]>([]);
 
   const fetchProfileData = async () => {
     try {
@@ -67,6 +70,10 @@ export default function Profile() {
         (f: any) => f.type !== "password" && f.label?.toLowerCase() !== "confirm password" && f.label?.toLowerCase() !== "email"
       );
       setTemplateFields(filteredFields);
+      // Fetch countries
+      const countriesRes = await AuthControllers.getCountries();
+      const countryData = countriesRes?.data || countriesRes || [];
+      setApiCountries(Array.isArray(countryData) ? countryData : []);
     } catch (error) {
       console.error("Profile fetch error", error);
       showSnackbar("Could not load profile details", "error");
@@ -100,7 +107,11 @@ export default function Profile() {
         let validator: any = Yup.string();
 
         if (field.required) {
-          validator = validator.required(`${field.label} is required`);
+          validator = validator.test(
+            "required-trim",
+            `${field.label} is required`,
+            (value: any) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
+          );
         }
 
         if (field.type === "numberField" || field.type === "number" || field.type === "slider" || field.type === "rating") {
@@ -177,22 +188,68 @@ export default function Profile() {
             );
         }
 
+        // Date validation
+        if (
+          field.type === "datePicker" ||
+          (field.label && (field.label.toLowerCase().includes("date of birth") || field.label.toLowerCase().includes("dob")))
+        ) {
+          validator = Yup.mixed()
+            .test("isValidDate", "Invalid date format", (value: any) => {
+              if (!value) return !field.required;
+              return dayjs(value).isValid();
+            });
+
+          if ((field.label && (field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("date of birth"))) || field.config?.disableFuture) {
+            validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
+              if (!value) return true;
+              return dayjs(value).isBefore(dayjs().endOf('day'));
+            });
+          }
+
+          if (field.config?.disablePast) {
+            validator = validator.test("noPastDate", "Date cannot be in the past", (value: any) => {
+              if (!value) return true;
+              return dayjs(value).isAfter(dayjs().startOf('day'));
+            });
+          }
+        }
+
+        // Name fields validation
         if (
           field.label && (
           field.label.toLowerCase() === "name" ||
           field.label.toLowerCase() === "first name" ||
-          field.label.toLowerCase() === "last name")
+          field.label.toLowerCase() === "last name" ||
+          field.label.toLowerCase() === "full name" ||
+          field.label.toLowerCase() === "father's name" ||
+          field.label.toLowerCase() === "mother's name")
         ) {
           validator = validator.matches(
             /^[A-Za-z\s]+$/,
             "Only alphabets and spaces are allowed"
           );
         }
+        
+        // School Name validation
+        if (field.label && field.label.toLowerCase().includes("school name")) {
+          validator = validator.matches(
+            /^[A-Za-z0-9\s'.-]+$/,
+            "Only alphabets, numbers, and basic punctuation are allowed"
+          );
+        }
+
+        // Country of Residence validation
+        if (field.type !== "countrySelector" && field.label && field.label.toLowerCase().includes("country of residence")) {
+          validator = validator.matches(
+            /^[A-Za-z\s'-]+$/,
+            "Only alphabetic characters are allowed"
+          );
+        }
 
         if (field.label && field.label.toLowerCase() === "innovation title") {
           validator = validator.matches(
-            /^[A-Za-z0-9\s]+$/,
-            "Only letters, numbers, and spaces are allowed"
+            /^[A-Za-z\s]+$/,
+            "Only alphabets and spaces are allowed"
           );
         }
 
@@ -201,7 +258,7 @@ export default function Profile() {
           (field.label && field.label.toLowerCase().includes("email"))
         ) {
           validator = validator.matches(
-            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
+            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
             "Invalid email format"
           );
         }
@@ -230,7 +287,7 @@ export default function Profile() {
       try {
         const payload = new FormData();
         Object.keys(values).forEach((key) => {
-          if (values[key] !== undefined && values[key] !== null && values[key] !== "") {
+          if (values[key] !== undefined && values[key] !== null) {
             const fieldMatch = templateFields.find(f => f.id === key);
             if (fieldMatch && (fieldMatch.type === "file_upload" || fieldMatch.type === "image")) {
               if (values[key] instanceof File) {
@@ -644,7 +701,17 @@ export default function Profile() {
                           name={field.id}
                           label={`${field.label} ${field.required ? "*" : ""}`}
                           value={formik.values[field.id] || ""}
-                          onChange={(value) => formik.setFieldValue(field.id, value)}
+                          onChange={(value, info) => {
+                            if (info && info.countryCode) {
+                              const example = getExampleNumber(info.countryCode as any, examples);
+                              const maxLen = example ? example.nationalNumber.length : 15;
+                              const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
+                              if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
+                                return;
+                              }
+                            }
+                            formik.setFieldValue(field.id, value);
+                          }}
                           defaultCountry={field.config?.defaultCountry || "AE"}
                           onlyCountries={field.config?.onlyCountries || undefined}
                           error={formik.touched[field.id] && Boolean(formik.errors[field.id])}
@@ -711,6 +778,45 @@ export default function Profile() {
                     );
                   }
 
+                  if (field.type === "countrySelector") {
+                    return (
+                      <Grid size={{ xs: 12, md: 6 }} key={field.id}>
+                        <FormControl
+                          fullWidth
+                          error={
+                            formik.touched[field.id] &&
+                            Boolean(formik.errors[field.id])
+                          }
+                        >
+                          <InputLabel id={`${field.id}-label`} sx={{ color: colors.TEXT_SECONDARY }}>
+                            {field.label} {field.required ? "*" : ""}
+                          </InputLabel>
+                          <Select
+                            labelId={`${field.id}-label`}
+                            id={field.id}
+                            name={field.id}
+                            value={formik.values[field.id] || ""}
+                            label={`${field.label} ${field.required ? "*" : ""}`}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            sx={textFieldStyles}
+                          >
+                            {apiCountries.map((country: any) => (
+                              <MenuItem key={country.id} value={country.name || country.id}>
+                                {country.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                          {formik.touched[field.id] && formik.errors[field.id] && (
+                            <FormHelperText>
+                              {String(formik.errors[field.id])}
+                            </FormHelperText>
+                          )}
+                        </FormControl>
+                      </Grid>
+                    );
+                  }
+
                   return (
                     <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                       <TextField
@@ -758,6 +864,28 @@ export default function Profile() {
                       type="submit"
                       variant="contained"
                       disabled={isUpdating}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const errors = await formik.validateForm();
+                        const errorKeys = Object.keys(errors);
+                        if (errorKeys.length > 0) {
+                          formik.setTouched(
+                            errorKeys.reduce((acc, key) => {
+                              acc[key] = true;
+                              return acc;
+                            }, {} as Record<string, boolean>)
+                          );
+                          setTimeout(() => {
+                            const firstErrorElement = document.getElementById(errorKeys[0]);
+                            if (firstErrorElement) {
+                              firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              firstErrorElement.focus();
+                            }
+                          }, 100);
+                        } else {
+                          formik.handleSubmit();
+                        }
+                      }}
                       sx={{
                         px: 5,
                         py: 1.5,

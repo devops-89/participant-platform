@@ -31,7 +31,8 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
 import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
+import examples from "libphonenumber-js/examples.mobile.json";
 import React, { useState, useMemo, useEffect } from "react";
 import * as Yup from "yup";
 
@@ -139,7 +140,20 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
     );
 
     if (currentPageErrors.length > 0) {
-      currentPageErrors.forEach((key) => formik.setFieldTouched(key, true));
+      const touchedFields: Record<string, boolean> = {};
+      currentPageErrors.forEach((key) => {
+        touchedFields[key] = true;
+      });
+      formik.setTouched({ ...formik.touched, ...touchedFields });
+      
+      // Scroll to first error
+      setTimeout(() => {
+        const firstErrorElement = document.getElementById(currentPageErrors[0]);
+        if (firstErrorElement) {
+          firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstErrorElement.focus();
+        }
+      }, 100);
       return;
     }
 
@@ -280,12 +294,30 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
           );
       }
 
-      // Name fields validation: allow only alphabets and spaces
+      // Name fields validation
       if (
-        lowercaseLabel.includes("name") ||
+        lowercaseLabel === "name" ||
         lowercaseLabel.includes("first name") ||
-        lowercaseLabel.includes("last name")
+        lowercaseLabel.includes("last name") ||
+        lowercaseLabel.includes("father's name") ||
+        lowercaseLabel.includes("mother's name")
       ) {
+        validator = validator.matches(
+          /^[A-Za-z\s]+$/,
+          "Only alphabets and spaces are allowed"
+        );
+      }
+
+      // School Name validation
+      if (lowercaseLabel.includes("school name")) {
+        validator = validator.matches(
+          /^[A-Za-z0-9\s'.-]+$/,
+          "Only alphabets, numbers, and basic punctuation are allowed"
+        );
+      }
+
+      // Innovation Title validation
+      if (lowercaseLabel.includes("innovation title")) {
         validator = validator.matches(
           /^[A-Za-z\s]+$/,
           "Only alphabets and spaces are allowed"
@@ -345,7 +377,10 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
       }
 
       if (lowercaseLabel.includes("email")) {
-        validator = validator.email("Invalid email format");
+        validator = validator.matches(
+          /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
+          "Invalid email format"
+        );
       }
 
       if (field.required || field.false) {
@@ -363,7 +398,11 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         ) {
           validator = validator.oneOf([true], "This field is required");
         } else {
-          validator = validator.required(`${field.label} is required`);
+          validator = validator.test(
+            "required-trim",
+            `${field.label} is required`,
+            (value: any) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
+          );
         }
       }
 
@@ -495,18 +534,11 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   value={formik.values[val.id] || ""}
                   onChange={(value, info) => {
                     if (info && info.countryCode) {
-                      const countryMaxLengths: Record<string, number> = {
-                        IN: 10,
-                        AE: 9,
-                        US: 10,
-                        GB: 10,
-                      };
-                      const maxLen = countryMaxLengths[info.countryCode];
-                      if (maxLen) {
-                        const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
-                        if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
-                          return; // prevent typing more digits
-                        }
+                      const example = getExampleNumber(info.countryCode as any, examples);
+                      const maxLen = example ? example.nationalNumber.length : 15;
+                      const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
+                      if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
+                        return;
                       }
                     }
                     formik.setFieldValue(val.id, value);
@@ -938,12 +970,22 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             onClick={async () => {
               if (activeStep === pages.length - 1 || pages.length === 0) {
                 const errors = await formik.validateForm();
-                if (Object.keys(errors).length > 0) {
+                const errorKeys = Object.keys(errors);
+                if (errorKeys.length > 0) {
                   const touchedFields: Record<string, boolean> = {};
-                  Object.keys(errors).forEach((key) => {
+                  errorKeys.forEach((key) => {
                     touchedFields[key] = true;
                   });
                   formik.setTouched(touchedFields);
+                  
+                  // Scroll to first error
+                  setTimeout(() => {
+                    const firstErrorElement = document.getElementById(errorKeys[0]);
+                    if (firstErrorElement) {
+                      firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      firstErrorElement.focus();
+                    }
+                  }, 100);
                 }
                 if (initialData && Object.keys(initialData).length > 0 && !formik.dirty) {
                   showSnackbar("Please make some changes before updating", "warning");
