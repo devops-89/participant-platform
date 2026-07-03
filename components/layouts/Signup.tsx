@@ -44,6 +44,7 @@ import { contestControllers } from "../../api/contestControllers";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
 import { FORM_CONTROLLERS } from "../../api/formControllers";
 import { ContestTemplateField } from "../../types/user";
+import { FilePreview } from "../widgets/FilePreview";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
@@ -272,6 +273,7 @@ export default function Signup() {
       if (
         field.type === "datePicker" ||
         lowercaseLabel.includes("date of birth") ||
+        lowercaseLabel.includes("birth") ||
         lowercaseLabel.includes("dob")
       ) {
         validator = Yup.mixed()
@@ -281,11 +283,19 @@ export default function Signup() {
           });
 
         // For Date of birth, we usually disable future dates by default.
-        if (lowercaseLabel.includes("dob") || lowercaseLabel.includes("date of birth") || field.config?.disableFuture) {
+        if (lowercaseLabel.includes("dob") || lowercaseLabel.includes("date of birth") || lowercaseLabel.includes("birth") || field.config?.disableFuture) {
           validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
             if (!value) return true;
             return dayjs(value).isBefore(dayjs().endOf('day'));
           });
+        }
+
+        if (lowercaseLabel.includes("birth")) {
+           validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: any) => {
+              if (!val) return true;
+              const diff = dayjs().diff(dayjs(val), 'year');
+              return diff >= 10 && diff <= 25;
+           });
         }
 
         if (field.config?.disablePast) {
@@ -423,11 +433,7 @@ export default function Signup() {
         const res = await AuthControllers.registerParticipants(payload);
         console.log("Signup API Response:", res?.data);
 
-        showSnackbar(
-          res?.data?.message ||
-            "Participant registered successfully. Please verify the OTP sent to your email.",
-          "success",
-        );
+        showSnackbar("Please verify your OTP.", "success");
 
         let emailFallback = "";
         templateFields.forEach((field) => {
@@ -822,7 +828,7 @@ export default function Signup() {
                               "&.Mui-focused": { color: colors.PRIMARY },
                             }}
                           >
-                            {field.label}
+                            {field.label}{field.required && " *"}
                           </InputLabel>
                           <Select
                             labelId={`label-${field.id}`}
@@ -884,109 +890,40 @@ export default function Signup() {
                   ) {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
-                        <Box
-                          sx={{
-                            p: 1,
-                            border: "1px dashed",
-                            borderColor: colors.BORDER,
-                            borderRadius: "8px",
-                            textAlign: "center",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "center",
-                            minHeight: "56px",
-                            height: "100%",
-                            boxSizing: "border-box",
-                          }}
-                        >
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 600,
-                              color: colors.TEXT_PRIMARY,
-                              fontSize: "0.85rem",
-                            }}
-                          >
-                            {field.label} {field.required && "*"}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{
-                              display: "block",
-                              mb: 0.5,
-                              fontSize: "0.7rem",
-                              lineHeight: 1.2,
-                            }}
-                          >
-                            {field.config?.allowedExtensions
-                              ? `Allowed: ${field.config?.allowedExtensions}`
-                              : "All files"}
-                            {field.config?.maxSize
-                              ? ` (Max: ${field.config?.maxSize}MB)`
-                              : ""}
-                          </Typography>
-                          <Button
-                            variant="outlined"
-                            component="label"
-                            size="small"
-                            sx={{
-                              alignSelf: "center",
-                              borderColor: colors.BORDER,
-                              color: colors.TEXT_PRIMARY,
-                              "&:hover": { borderColor: colors.PRIMARY },
-                              py: 0.25,
-                              px: 1,
-                              fontSize: "0.75rem",
-                              textTransform: "none",
-                            }}
-                          >
-                            Upload File
-                            <input
-                              type="file"
-                              hidden
-                              accept={
-                                field.config?.allowedExtensions || undefined
-                              }
-                              onChange={(e) => {
-                                if (
-                                  e.target.files &&
-                                  e.target.files.length > 0
-                                ) {
-                                  formik.setFieldValue(
-                                    field.id,
-                                    e.target.files[0],
-                                  );
-                                }
-                              }}
-                            />
-                          </Button>
+                        <Box sx={{ p: 1.5, border: "1px dashed", borderColor: "divider", borderRadius: "10px", position: "relative", width: "100%", boxSizing: "border-box" }}>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, textAlign: "left", color: colors.TEXT_PRIMARY }}>
+                              {field.label}{field.required && " *"}
+                            </Typography>
+                            
+                            {!formik.values[field.id] && (
+                              <Button variant="outlined" component="label" size="small" sx={{ whiteSpace: 'nowrap' }}>
+                                Upload File
+                                <input
+                                  type="file"
+                                  hidden
+                                  accept={field.config?.allowedExtensions || undefined}
+                                  onChange={(e: any) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                      formik.setFieldValue(field.id, e.target.files[0]);
+                                    }
+                                  }}
+                                />
+                              </Button>
+                            )}
+                          </Box>
+
                           {formik.values[field.id] && (
-                            <Box sx={{ display: "flex", alignItems: "center", mt: 1, gap: 1 }}>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: colors.TEXT_PRIMARY,
-                                }}
-                              >
-                                Selected:{" "}
-                                {(formik.values[field.id] as unknown as File)
-                                  .name || "File attached"}
-                              </Typography>
-                              <IconButton
-                                size="small"
-                                onClick={() => formik.setFieldValue(field.id, null)}
-                                sx={{ color: "error.main", p: 0.5 }}
-                              >
-                                <Close fontSize="small" />
-                              </IconButton>
+                            <Box sx={{ mt: 2, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                              <FilePreview 
+                                fileVal={formik.values[field.id]} 
+                                label={field.label} 
+                                onClear={() => formik.setFieldValue(field.id, null)} 
+                              />
                             </Box>
                           )}
                           {getFieldError(field.id) && (
-                            <FormHelperText
-                              error
-                              sx={{ textAlign: "center", mt: 1 }}
-                            >
+                            <FormHelperText error sx={{ mx: 2, mt: 0.5 }}>
                               {getFieldError(field.id)}
                             </FormHelperText>
                           )}
@@ -1009,7 +946,7 @@ export default function Signup() {
                               "&.Mui-focused": { color: colors.PRIMARY },
                             }}
                           >
-                            {field.label}
+                            {field.label}{field.required && " *"}
                           </FormLabel>
                           <RadioGroup
                             row
@@ -1087,30 +1024,41 @@ export default function Signup() {
                   ) {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
-                        <MuiTelInput
-                          fullWidth
-                          id={field.id}
-                          name={field.id}
-                          label={field.label}
-                          defaultCountry={selectedCountryCode as any}
-                          forceCallingCode
-                          value={formik.values[field.id] || ""}
-                          onChange={(value, info) => {
-                            if (info && info.countryCode) {
-                              const example = getExampleNumber(info.countryCode as any, examples);
-                              const maxLen = example ? example.nationalNumber.length : 15;
-                              const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
-                              if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
-                                return;
-                              }
-                            }
-                            formik.setFieldValue(field.id, value);
-                          }}
-                          onBlur={() => formik.setFieldTouched(field.id, true)}
-                          error={Boolean(getFieldError(field.id))}
-                          helperText={getFieldError(field.id) || field.helperText}
-                          sx={textFieldStyles}
-                        />
+                        {(() => {
+                          const phoneVal = formik.values[field.id] || "";
+                          const parsed = parsePhoneNumberFromString(phoneVal);
+                          const countryCode = parsed?.country || selectedCountryCode || "IN";
+                          const example = getExampleNumber(countryCode as any, examples);
+                          const maxLength = example ? example.formatInternational().length : 15;
+
+                          return (
+                            <MuiTelInput
+                              onKeyDown={(e) => {
+                                const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
+                                if (phoneVal.length >= maxLength && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              fullWidth
+                              id={field.id}
+                              name={field.id}
+                              label={field.label}
+                              required={field.required}
+                              defaultCountry={(field.config?.defaultCountry || selectedCountryCode) as any}
+                              onlyCountries={field.config?.onlyCountries || undefined}
+                              forceCallingCode
+                              value={formik.values[field.id] || ""}
+                              onChange={(value) => {
+                                formik.setFieldValue(field.id, value);
+                                formik.setFieldTouched(field.id, true, false);
+                              }}
+                              onBlur={() => formik.setFieldTouched(field.id, true)}
+                              error={Boolean(getFieldError(field.id))}
+                              helperText={getFieldError(field.id) || field.helperText}
+                              sx={textFieldStyles}
+                            />
+                          );
+                        })()}
                       </Grid>
                     );
                   }
@@ -1135,7 +1083,7 @@ export default function Signup() {
                                 }}
                               />
                             }
-                            label={field.label}
+                            label={`${field.label}${field.required ? " *" : ""}`}
                           />
                           {getFieldError(field.id) && (
                             <FormHelperText>
@@ -1170,7 +1118,7 @@ export default function Signup() {
                                 }}
                               />
                             }
-                            label={field.label}
+                            label={`${field.label}${field.required ? " *" : ""}`}
                           />
                           {getFieldError(field.id) && (
                             <FormHelperText>
@@ -1193,7 +1141,7 @@ export default function Signup() {
                             variant="body2"
                             sx={{ color: colors.TEXT_SECONDARY, mb: 1 }}
                           >
-                            {field.label}
+                            {field.label}{field.required && " *"}
                           </Typography>
                           <Slider
                             id={field.id}
@@ -1236,7 +1184,7 @@ export default function Signup() {
                             variant="body2"
                             sx={{ color: colors.TEXT_SECONDARY, mb: 1 }}
                           >
-                            {field.label}
+                            {field.label}{field.required && " *"}
                           </Typography>
                           <Rating
                             id={field.id}
@@ -1274,6 +1222,7 @@ export default function Signup() {
                             <TextField
                               {...params}
                               label={field.label}
+                              required={field.required}
                               variant="outlined"
                               error={Boolean(getFieldError(field.id))}
                               helperText={getFieldError(field.id) || field.helperText}
@@ -1290,32 +1239,40 @@ export default function Signup() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
-                          <DatePicker
-                            label={field.label}
-                            value={
-                              formik.values[field.id]
-                                ? dayjs(formik.values[field.id])
-                                : null
-                            }
-                            onChange={(newValue: any) => {
-                              if (newValue && typeof newValue.isValid === "function" && newValue.isValid()) {
-                                formik.setFieldValue(field.id, newValue.toISOString());
-                              } else {
-                                formik.setFieldValue(field.id, "");
-                              }
-                            }}
-                            disablePast={field.config?.disablePast}
-                            disableFuture={field.config?.disableFuture}
-                            slotProps={{
-                              textField: {
-                                fullWidth: true,
-                                onBlur: () => formik.setFieldTouched(field.id, true),
-                                error: Boolean(getFieldError(field.id)),
-                                helperText: getFieldError(field.id) || field.helperText,
-                                sx: textFieldStyles,
-                              },
-                            }}
-                          />
+                          {(() => {
+                            const isBirthDate = field.label?.toLowerCase().includes("birth");
+                            return (
+                              <DatePicker
+                                label={field.label}
+                                value={
+                                  formik.values[field.id]
+                                    ? dayjs(formik.values[field.id])
+                                    : null
+                                }
+                                onChange={(newValue: any) => {
+                                  if (newValue && typeof newValue.isValid === "function" && newValue.isValid()) {
+                                    formik.setFieldValue(field.id, newValue.toISOString());
+                                  } else {
+                                    formik.setFieldValue(field.id, "");
+                                  }
+                                }}
+                                disablePast={isBirthDate ? false : field.config?.disablePast}
+                                disableFuture={isBirthDate ? true : field.config?.disableFuture}
+                                minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
+                                maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    onBlur: () => formik.setFieldTouched(field.id, true),
+                                    error: Boolean(getFieldError(field.id)),
+                                    helperText: getFieldError(field.id) || field.helperText,
+                                    required: field.required,
+                                    sx: textFieldStyles,
+                                  },
+                                }}
+                              />
+                            );
+                          })()}
                         </LocalizationProvider>
                       </Grid>
                     );
@@ -1329,6 +1286,7 @@ export default function Signup() {
                           id={field.id}
                           name={field.id}
                           label={field.label}
+                          required={field.required}
                           placeholder={field.placeholder}
                           type="number"
                           variant="outlined"
@@ -1357,6 +1315,7 @@ export default function Signup() {
                         id={field.id}
                         name={field.id}
                         label={field.label}
+                        required={field.required}
                         placeholder={field.placeholder}
                         type={
                           isPassword

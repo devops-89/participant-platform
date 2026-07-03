@@ -37,6 +37,7 @@ import examples from "libphonenumber-js/examples.mobile.json";
 import * as Yup from "yup";
 import { AuthControllers } from "../../api/authControllers";
 import { ContestTemplateField } from "../../types/user";
+import { FilePreview } from "../widgets/FilePreview";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
@@ -191,7 +192,7 @@ export default function Profile() {
         // Date validation
         if (
           field.type === "datePicker" ||
-          (field.label && (field.label.toLowerCase().includes("date of birth") || field.label.toLowerCase().includes("dob")))
+          (field.label && (field.label.toLowerCase().includes("date of birth") || field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("birth")))
         ) {
           validator = Yup.mixed()
             .test("isValidDate", "Invalid date format", (value: any) => {
@@ -199,11 +200,19 @@ export default function Profile() {
               return dayjs(value).isValid();
             });
 
-          if ((field.label && (field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("date of birth"))) || field.config?.disableFuture) {
+          if ((field.label && (field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("birth") || field.label.toLowerCase().includes("date of birth"))) || field.config?.disableFuture) {
             validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
               if (!value) return true;
               return dayjs(value).isBefore(dayjs().endOf('day'));
             });
+          }
+
+          if (field.label && field.label.toLowerCase().includes("birth")) {
+             validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: any) => {
+                if (!val) return true;
+                const diff = dayjs().diff(dayjs(val), 'year');
+                return diff >= 10 && diff <= 25;
+             });
           }
 
           if (field.config?.disablePast) {
@@ -548,101 +557,74 @@ export default function Profile() {
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <Box
                           sx={{
-                            p: 2,
-                            border: "2px dashed",
+                            p: 1.5,
+                            border: "1px dashed",
                             borderColor: colors.BORDER,
-                            borderRadius: "12px",
+                            borderRadius: "10px",
                             display: "flex",
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            minHeight: "70px",
-                            bgcolor: "rgba(0,0,0,0.02)",
-                            transition: "all 0.2s ease-in-out",
+                            flexDirection: "column",
+                            gap: 2,
                             width: "100%",
-                            maxWidth: "320px",
+                            boxSizing: "border-box",
+                            transition: "all 0.2s ease-in-out",
                             "&:hover": {
                               borderColor: colors.PRIMARY,
-                              bgcolor: "rgba(0,0,0,0.04)"
                             },
-                            height: "100%",
                           }}
                         >
-                          <Typography
-                            variant="body2"
-                            sx={{ color: colors.TEXT_SECONDARY, mr: 2, display: "none" }}
-                          >
-                            {field.label} {field.required && "*"}
-                          </Typography>
                           
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                            {formik.values[field.id] ? (
-                              <Box sx={{ position: "relative" }}>
-                                <Avatar
-                                  src={
-                                    formik.values[field.id] instanceof File
-                                      ? URL.createObjectURL(formik.values[field.id])
-                                      : typeof formik.values[field.id] === "string" && formik.values[field.id] !== ""
-                                      ? (subData[`${field.id}_downloadUrl`] || subData[`${field.id}_downloadUrl_downloadUrl`] || formik.values[field.id])
-                                      : ""
-                                  }
-                                  sx={{ 
-                                    width: 60, 
-                                    height: 60, 
-                                    border: `2px solid #fff`, 
-                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                                    bgcolor: colors.PRIMARY
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, fontWeight: 600 }}>
+                              {field.label}{field.required && " *"}
+                            </Typography>
+                            
+                            {!formik.values[field.id] && (
+                              <Button
+                                variant="outlined"
+                                component="label"
+                                size="small"
+                                sx={{
+                                  textTransform: "none",
+                                  borderColor: colors.BORDER,
+                                  color: colors.PRIMARY,
+                                  whiteSpace: "nowrap",
+                                  "&:hover": { borderColor: colors.PRIMARY },
+                                }}
+                              >
+                                Upload New Image
+                                <input
+                                  type="file"
+                                  hidden
+                                  accept={field.config?.allowedExtensions || undefined}
+                                  onChange={(e: any) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                      formik.setFieldValue(field.id, e.target.files[0]);
+                                    }
                                   }}
-                                >
-                                  {!(typeof formik.values[field.id] === "string") && !(formik.values[field.id] instanceof File) ? "📄" : ""}
-                                </Avatar>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => formik.setFieldValue(field.id, "")}
-                                  sx={{ 
-                                    position: "absolute", 
-                                    top: -4, 
-                                    right: -4, 
-                                    width: 20,
-                                    height: 20,
-                                    bgcolor: "white", 
-                                    boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
-                                    "&:hover": { bgcolor: "#ff4444", color: "white" } 
-                                  }}
-                                >
-                                  <CloseIcon sx={{ fontSize: 14 }} />
-                                </IconButton>
-                              </Box>
-                            ) : (
-                              <Typography variant="body2" sx={{ color: colors.TEXT_SECONDARY, fontWeight: 500 }}>
-                                {field.label} {field.required && "*"}
-                              </Typography>
+                                />
+                              </Button>
                             )}
                           </Box>
 
-                          <Button
-                            variant="outlined"
-                            component="label"
-                            sx={{
-                              textTransform: "none",
-                              borderColor: colors.BORDER,
-                              color: colors.PRIMARY,
-                              "&:hover": { borderColor: colors.PRIMARY },
-                            }}
-                          >
-                            Upload New Image
-                            <input
-                              type="file"
-                              hidden
-                              accept=".jpg,.jpeg,.png,.pdf"
-                              onChange={(e: any) => {
-                                const file = e.currentTarget.files[0];
-                                if (file) {
-                                  formik.setFieldValue(field.id, file);
-                                }
-                              }}
-                            />
-                          </Button>
+                          {formik.values[field.id] && (
+                            <Box sx={{ mt: 1, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                              {(() => {
+                                const fileVal = formik.values[field.id];
+                                const downloadUrl = userData?.participant_profile_data?.[`${field.id}_downloadUrl`] 
+                                  || userData?.participant_profile_data?.[`${field.label}_downloadUrl`] 
+                                  || subData?.[`${field.id}_downloadUrl`] 
+                                  || subData?.[`${field.label}_downloadUrl`];
+                                return (
+                                  <FilePreview 
+                                    fileVal={fileVal} 
+                                    previewUrl={typeof fileVal === "string" ? downloadUrl : undefined}
+                                    label={field.label} 
+                                    onClear={() => formik.setFieldValue(field.id, null)} 
+                                  />
+                                );
+                              })()}
+                            </Box>
+                          )}
                         </Box>
                         {formik.touched[field.id] && formik.errors[field.id] && (
                           <FormHelperText error sx={{ mx: 2, mt: 0.5 }}>
@@ -695,29 +677,38 @@ export default function Profile() {
                   if (field.type === "phone_number" || field.type === "telInput") {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
-                        <MuiTelInput
-                          fullWidth
-                          id={field.id}
-                          name={field.id}
-                          label={`${field.label} ${field.required ? "*" : ""}`}
-                          value={formik.values[field.id] || ""}
-                          onChange={(value, info) => {
-                            if (info && info.countryCode) {
-                              const example = getExampleNumber(info.countryCode as any, examples);
-                              const maxLen = example ? example.nationalNumber.length : 15;
-                              const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
-                              if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
-                                return;
-                              }
-                            }
-                            formik.setFieldValue(field.id, value);
-                          }}
-                          defaultCountry={field.config?.defaultCountry || "AE"}
-                          onlyCountries={field.config?.onlyCountries || undefined}
-                          error={formik.touched[field.id] && Boolean(formik.errors[field.id])}
-                          helperText={formik.touched[field.id] && typeof formik.errors[field.id] === "string" ? String(formik.errors[field.id]) : undefined}
-                          sx={textFieldStyles}
-                        />
+                        {(() => {
+                          const phoneVal = formik.values[field.id] || "";
+                          const parsed = parsePhoneNumberFromString(phoneVal);
+                          const countryCode = parsed?.country || field.config?.defaultCountry || "AE";
+                          const example = getExampleNumber(countryCode as any, examples);
+                          const maxLength = example ? example.formatInternational().length : 15;
+
+                          return (
+                            <MuiTelInput
+                              onKeyDown={(e) => {
+                                const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
+                                if (phoneVal.length >= maxLength && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              fullWidth
+                              id={field.id}
+                              name={field.id}
+                              label={`${field.label} ${field.required ? "*" : ""}`}
+                              value={formik.values[field.id] || ""}
+                              onChange={(value) => {
+                                formik.setFieldValue(field.id, value);
+                                formik.setFieldTouched(field.id, true, false);
+                              }}
+                              defaultCountry={field.config?.defaultCountry || "AE"}
+                              onlyCountries={field.config?.onlyCountries || undefined}
+                              error={formik.touched[field.id] && Boolean(formik.errors[field.id])}
+                              helperText={formik.touched[field.id] && typeof formik.errors[field.id] === "string" ? String(formik.errors[field.id]) : undefined}
+                              sx={textFieldStyles}
+                            />
+                          );
+                        })()}
                       </Grid>
                     );
                   }
@@ -765,14 +756,29 @@ export default function Profile() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
-                          <DatePicker
-                            label={`${field.label} ${field.required ? "*" : ""}`}
-                            value={formik.values[field.id] ? dayjs(formik.values[field.id]) : null}
-                            onChange={(val) => {
-                              formik.setFieldValue(field.id, val ? val.toISOString() : null);
-                            }}
-                            sx={{ width: "100%", ...textFieldStyles }}
-                          />
+                          {(() => {
+                            const isBirthDate = field.label?.toLowerCase().includes("birth");
+                            return (
+                              <DatePicker
+                                label={`${field.label} ${field.required ? "*" : ""}`}
+                                value={formik.values[field.id] ? dayjs(formik.values[field.id]) : null}
+                                onChange={(val) => {
+                                  formik.setFieldValue(field.id, val ? val.toISOString() : null);
+                                }}
+                                sx={{ width: "100%", ...textFieldStyles }}
+                                slotProps={{
+                                  textField: {
+                                    error: Boolean(formik.touched[field.id] && formik.errors[field.id]),
+                                    helperText: (formik.touched[field.id] && formik.errors[field.id] as string) || undefined,
+                                  }
+                                }}
+                                disablePast={isBirthDate ? false : field.config?.disablePast}
+                                disableFuture={isBirthDate ? true : field.config?.disableFuture}
+                                minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
+                                maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
+                              />
+                            );
+                          })()}
                         </LocalizationProvider>
                       </Grid>
                     );

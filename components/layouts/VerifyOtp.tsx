@@ -1,29 +1,27 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
-  Alert,
   Box,
   Button,
-  Collapse,
   Container,
   IconButton,
   InputAdornment,
   Paper,
   TextField,
-  Typography,
+  Typography
 } from "@mui/material";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useFormik } from "formik";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as Yup from "yup";
 
-import { useAppTheme } from "@/context/ThemeContext";
-import { AuthControllers } from "../../api/authControllers";
 import { useSnackbar } from "@/context/SnackbarContext";
+import { useAppTheme } from "@/context/ThemeContext";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
-import { ResetPassword_Validation } from "@/utils/validation";
+import { AuthControllers } from "../../api/authControllers";
 
 export default function VerifyOtp() {
   const { colors } = useAppTheme();
@@ -92,11 +90,11 @@ export default function VerifyOtp() {
 
   const formik = useFormik({
     initialValues: {
-      password: "",
+      newPassword: "",
       confirmPassword: "",
     },
     validationSchema: flow === "forgot" ? Yup.object({
-      password: Yup.string()
+      newPassword: Yup.string()
         .min(8, "Password must be at least 8 characters")
         .matches(/[A-Z]/, "Password must include at least one uppercase letter")
         .matches(/[a-z]/, "Password must include at least one lowercase letter")
@@ -107,7 +105,7 @@ export default function VerifyOtp() {
         )
         .required("Please Enter Password"),
       confirmPassword: Yup.string()
-        .oneOf([Yup.ref("password")], "Passwords must match")
+        .oneOf([Yup.ref("newPassword")], "Passwords must match")
         .required("Please Confirm Your Password"),
     }) : Yup.object({}),
 
@@ -128,7 +126,7 @@ export default function VerifyOtp() {
           const response = await AuthControllers.resetPassword({
             email: emailParam,
             otp: otpValue,
-            password: values.password,
+            password: values.newPassword,
           });
 
           if (response.data && response.data.success === false) {
@@ -152,10 +150,10 @@ export default function VerifyOtp() {
         };
 
         const res = await AuthControllers.verifyOtp(payload);
-        if (res.data && res.data.success === false) {
+        if (res.data && (res.data.success === false || res.data.status === false || res.data.error)) {
           throw new Error(res.data.message || "Invalid OTP or OTP expired");
         }
-        showSnackbar("OTP verified successfully", "success");
+        showSnackbar("Registration successful", "success");
         
         const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
         if (token) {
@@ -175,8 +173,15 @@ export default function VerifyOtp() {
         router.push("/dashboard");
       } catch (err: any) {
         let errorMessage = err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.";
-        if (errorMessage.toLowerCase().includes("invalid") || errorMessage.toLowerCase().includes("otp") || errorMessage.toLowerCase().includes("validation")) {
-          errorMessage = "Invalid OTP. Please enter the correct verification code.";
+        
+        const lowerMsg = errorMessage.toLowerCase();
+        const isInvalidOtpMessage = lowerMsg.includes("invalid otp");
+        const isExpiredOtpMessage = lowerMsg.includes("otp expired") || lowerMsg.includes("expired");
+        
+        if (isExpiredOtpMessage || (isInvalidOtpMessage && canResend)) {
+          errorMessage = "OTP has expired. Please request a new OTP.";
+        } else if (isInvalidOtpMessage) {
+          errorMessage = "Invalid OTP.";
         }
         showSnackbar(errorMessage, "error");
       } finally {
@@ -253,6 +258,21 @@ export default function VerifyOtp() {
               textAlign: "center",
             }}
           >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Button
+                variant="text"
+                onClick={() => router.back()}
+                startIcon={<ArrowBackIcon />}
+                sx={{
+                  color: colors.TEXT_SECONDARY,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  "&:hover": { bgcolor: "transparent", color: colors.PRIMARY },
+                }}
+              >
+                Back
+              </Button>
+            </Box>
             <Typography
               variant="h4"
               component="h1"
@@ -309,10 +329,10 @@ export default function VerifyOtp() {
             {flow === "forgot" && (
               <Box sx={{ mt: 4, textAlign: "left" }}>
                 <TextField
-                  fullWidth margin="normal" label="New Password" name="password" type={showPassword ? "text" : "password"} sx={textFieldStyles}
-                  value={formik.values.password} onChange={formik.handleChange} onBlur={formik.handleBlur}
-                  error={formik.touched.password && Boolean(formik.errors.password)}
-                  helperText={formik.touched.password && formik.errors.password as string}
+                  fullWidth margin="normal" label="New Password" autoComplete="new-password" name="newPassword" type={showPassword ? "text" : "password"} sx={textFieldStyles}
+                  value={formik.values.newPassword} onChange={formik.handleChange} onBlur={formik.handleBlur}
+                  error={formik.touched.newPassword && Boolean(formik.errors.newPassword)}
+                  helperText={formik.touched.newPassword && formik.errors.newPassword as string}
                   slotProps={{
                     input: {
                       endAdornment: (
@@ -326,7 +346,7 @@ export default function VerifyOtp() {
                   }}
                 />
                 <TextField
-                  fullWidth margin="normal" label="Confirm Password" name="confirmPassword" type={showConfirmPassword ? "text" : "password"} sx={textFieldStyles}
+                  fullWidth margin="normal" label="Confirm Password" autoComplete="new-password" name="confirmPassword" type={showConfirmPassword ? "text" : "password"} sx={textFieldStyles}
                   value={formik.values.confirmPassword} onChange={formik.handleChange} onBlur={formik.handleBlur}
                   error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
                   helperText={formik.touched.confirmPassword && formik.errors.confirmPassword as string}

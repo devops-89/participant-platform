@@ -224,9 +224,17 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         case FIELDS_TYPE.RATING:
           validator = Yup.number();
           break;
-        case FIELDS_TYPE.DATE_PICKER:
+        case FIELDS_TYPE.DATE_PICKER: {
           validator = Yup.string();
+          if (field.label?.toLowerCase().includes("birth")) {
+             validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: any) => {
+                if (!val) return true;
+                const diff = dayjs().diff(dayjs(val), 'year');
+                return diff >= 10 && diff <= 25;
+             });
+          }
           break;
+        }
         case FIELDS_TYPE.FILE_UPLOAD: {
           let fileValidator = Yup.mixed().nullable();
           if (field.config?.maxSize) {
@@ -284,14 +292,11 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
       // Password checks
       if (field.type === FIELDS_TYPE.PASSWORD || lowercaseLabel.includes("password")) {
         validator = validator
-          .min(8, "Password must be at least 8 characters")
-          .matches(/[A-Z]/, "Password must include at least one uppercase letter")
-          .matches(/[a-z]/, "Password must include at least one lowercase letter")
-          .matches(/[0-9]/, "Password must include at least one number")
-          .matches(
-            /[!@#$%^&*(),.?":{}|<>]/,
-            "Password must include at least one special character"
-          );
+          .test("pass-min", "Password must be at least 8 characters", (val: any) => !val || val.length >= 8)
+          .test("pass-up", "Password must include at least one uppercase letter", (val: any) => !val || /[A-Z]/.test(val))
+          .test("pass-low", "Password must include at least one lowercase letter", (val: any) => !val || /[a-z]/.test(val))
+          .test("pass-num", "Password must include at least one number", (val: any) => !val || /[0-9]/.test(val))
+          .test("pass-sp", "Password must include at least one special character", (val: any) => !val || /[!@#$%^&*(),.?":{}|<>]/.test(val));
       }
 
       // Name fields validation
@@ -302,26 +307,17 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         lowercaseLabel.includes("father's name") ||
         lowercaseLabel.includes("mother's name")
       ) {
-        validator = validator.matches(
-          /^[A-Za-z\s]+$/,
-          "Only alphabets and spaces are allowed"
-        );
+        validator = validator.test("name-val", "Only alphabets and spaces are allowed", (val: any) => !val || /^[A-Za-z\s]+$/.test(val));
       }
 
       // School Name validation
       if (lowercaseLabel.includes("school name")) {
-        validator = validator.matches(
-          /^[A-Za-z0-9\s'.-]+$/,
-          "Only alphabets, numbers, and basic punctuation are allowed"
-        );
+        validator = validator.test("school-val", "Only alphabets, numbers, and basic punctuation are allowed", (val: any) => !val || /^[A-Za-z0-9\s'.-]+$/.test(val));
       }
 
       // Innovation Title validation
       if (lowercaseLabel.includes("innovation title")) {
-        validator = validator.matches(
-          /^[A-Za-z\s]+$/,
-          "Only alphabets and spaces are allowed"
-        );
+        validator = validator.test("title-val", "Only alphabets and spaces are allowed", (val: any) => !val || /^[A-Za-z\s]+$/.test(val));
       }
 
       // Province/State/City validation
@@ -330,10 +326,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         lowercaseLabel.includes("state") ||
         lowercaseLabel.includes("city")
       ) {
-        validator = validator.matches(
-          /^[A-Za-z\s'-]+$/,
-          "Only alphabetic characters are allowed"
-        );
+        validator = validator.test("city-val", "Only alphabetic characters are allowed", (val: any) => !val || /^[A-Za-z\s'-]+$/.test(val));
       }
 
       // Zip Code validation
@@ -344,9 +337,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         lowercaseLabel.includes("pincode")
       ) {
         validator = validator
-          .matches(/^[0-9]+$/, "Only digits are allowed")
-          .min(3, "Zip Code is too short")
-          .max(10, "Zip Code is too long");
+          .test("zip-val", "Only digits are allowed", (val: any) => !val || /^[0-9]+$/.test(val))
+          .test("zip-min", "Zip Code is too short", (val: any) => !val || val.length >= 3)
+          .test("zip-max", "Zip Code is too long", (val: any) => !val || val.length <= 10);
       }
 
       // Date of Birth / date picker validation
@@ -377,10 +370,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
       }
 
       if (lowercaseLabel.includes("email")) {
-        validator = validator.matches(
-          /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
-          "Invalid email format"
-        );
+        validator = validator.test("email-val", "Invalid email format", (val: any) => !val || /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(val));
       }
 
       if (field.required || field.false) {
@@ -446,7 +436,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Grid container spacing={4}>
         {currentPageFields?.map((val: any) => {
-          const isFullWidth = val.type === FIELDS_TYPE.TEXTBLOCK || val.type === FIELDS_TYPE.TEXTAREA || val.type === FIELDS_TYPE.SWITCH || val.type === FIELDS_TYPE.CHECKBOX || val.type === FIELDS_TYPE.RADIO;
+          const isFullWidth = val.type === FIELDS_TYPE.TEXTBLOCK || val.type === FIELDS_TYPE.TEXTAREA || val.type === FIELDS_TYPE.SWITCH || val.type === FIELDS_TYPE.CHECKBOX || val.type === FIELDS_TYPE.RADIO || val.type === FIELDS_TYPE.FILE_UPLOAD;
           if (val.type === FIELDS_TYPE.STEP_BREAK) {
             return (
               <Grid key={val.id} size={{ xs: 12 }}>
@@ -524,24 +514,31 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             )}
 
             {val.type === FIELDS_TYPE.TEL_INPUT && (
-              <Box>
-                <MuiTelInput
-                  label={val.label || val.placeholder}
+              (() => {
+                const phoneVal = formik.values[val.id] || "";
+                const parsed = parsePhoneNumberFromString(phoneVal);
+                const countryCode = parsed?.country || val.config?.defaultCountry || "IN";
+                const example = getExampleNumber(countryCode as any, examples);
+                const maxLength = example ? example.formatInternational().length : 15;
+
+                return (
+                  <Box>
+                    <MuiTelInput
+                      onKeyDown={(e) => {
+                        const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
+                        if (phoneVal.length >= maxLength && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                          e.preventDefault();
+                        }
+                      }}
+                      label={val.label || val.placeholder}
                   variant={val.variant || "outlined"}
                   fullWidth
                   required={val.required || val.false}
                   name={val.id}
                   value={formik.values[val.id] || ""}
-                  onChange={(value, info) => {
-                    if (info && info.countryCode) {
-                      const example = getExampleNumber(info.countryCode as any, examples);
-                      const maxLen = example ? example.nationalNumber.length : 15;
-                      const parsed = parsePhoneNumberFromString(value, info.countryCode as any);
-                      if (parsed && parsed.nationalNumber && parsed.nationalNumber.length > maxLen) {
-                        return;
-                      }
-                    }
+                  onChange={(value) => {
                     formik.setFieldValue(val.id, value);
+                    formik.setFieldTouched(val.id, true, false);
                   }}
                   onBlur={() => formik.setFieldTouched(val.id, true)}
                   error={Boolean(getFieldError(val.id))}
@@ -563,39 +560,48 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   </FormHelperText>
                 )}
               </Box>
+                );
+              })()
             )}
 
             {val.type === FIELDS_TYPE.DATE_PICKER && (
               <Box>
-                <DatePicker
-                  label={val.label || val.placeholder}
-                  value={formik.values[val.id] ? dayjs(formik.values[val.id]) : null}
-                  onChange={(newValue) =>
-                    formik.setFieldValue(
-                      val.id,
-                      newValue && newValue.isValid() ? newValue.toISOString() : null
-                    )
-                  }
-                  slotProps={{
-                    textField: {
-                      error: Boolean(getFieldError(val.id)),
-                      helperText: getFieldError(val.id) || val.helperText,
-                      required: val.required || val.false,
-                    },
-                  }}
-                  disablePast={val.config?.disablePast}
-                  disableFuture={val.config?.disableFuture}
-                  sx={{
-                    width: "100%",
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "10px",
-                      backgroundColor: "#ffffff",
-                      "& fieldset": { borderColor: "#e2e8f0" },
-                      "&:hover fieldset": { borderColor: "#cbd5e1" },
-                      "&.Mui-focused fieldset": { borderColor: "#6366f1" },
-                    },
-                  }}
-                />
+                {(() => {
+                  const isBirthDate = val.label?.toLowerCase().includes("birth");
+                  return (
+                    <DatePicker
+                      label={val.label || val.placeholder}
+                      value={formik.values[val.id] ? dayjs(formik.values[val.id]) : null}
+                      onChange={(newValue) =>
+                        formik.setFieldValue(
+                          val.id,
+                          newValue && newValue.isValid() ? newValue.toISOString() : null
+                        )
+                      }
+                      slotProps={{
+                        textField: {
+                          error: Boolean(getFieldError(val.id)),
+                          helperText: getFieldError(val.id) || val.helperText,
+                          required: val.required || val.false,
+                        },
+                      }}
+                      disablePast={isBirthDate ? false : val.config?.disablePast}
+                      disableFuture={isBirthDate ? true : val.config?.disableFuture}
+                      minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
+                      maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
+                      sx={{
+                        width: "100%",
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "10px",
+                          backgroundColor: "#ffffff",
+                          "& fieldset": { borderColor: "#e2e8f0" },
+                          "&:hover fieldset": { borderColor: "#cbd5e1" },
+                          "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        },
+                      }}
+                    />
+                  );
+                })()}
               </Box>
             )}
 
@@ -867,17 +873,31 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             )}
 
             {val.type === FIELDS_TYPE.FILE_UPLOAD && (
-              <Box sx={{ p: 2, border: "1px dashed", borderColor: "divider", borderRadius: "10px", textAlign: "center", position: "relative" }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {val.label} {(val.required || val.false) && "*"}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-                  {val.config?.allowedExtensions ? `Allowed: ${val.config?.allowedExtensions}` : "All files allowed"} 
-                  {val.config?.maxSize ? ` (Max: ${val.config?.maxSize}MB)` : ""}
-                </Typography>
-                
-                {formik.values[val.id] ? (
-                  <Box sx={{ mt: 2, position: "relative", display: "inline-block", maxWidth: "100%" }}>
+              <Box sx={{ p: 1.5, border: "1px dashed", borderColor: "divider", borderRadius: "10px", position: "relative", width: { xs: "100%", sm: "fit-content" }, pr: { sm: 3 } }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, textAlign: "left" }}>
+                    {val.label}{(val.required || val.false) && " *"}
+                  </Typography>
+                  
+                  {!formik.values[val.id] && (
+                    <Button variant="outlined" component="label" size="small" sx={{ whiteSpace: 'nowrap' }}>
+                      Upload File
+                      <input 
+                        type="file" 
+                        hidden 
+                        accept={val.config?.allowedExtensions || undefined}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            formik.setFieldValue(val.id, e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </Button>
+                  )}
+                </Box>
+
+                {formik.values[val.id] && (
+                  <Box sx={{ mt: 2, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
                     {(() => {
                         const fileVal = formik.values[val.id];
                         const downloadUrl = initialData?.[`${val.id}_downloadUrl`] || initialData?.[`${val.label}_downloadUrl`] || initialData?.[`${val.label?.trim()}_downloadUrl`];
@@ -891,24 +911,10 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                         );
                       })()}
                   </Box>
-                ) : (
-                  <Button variant="outlined" component="label" size="small">
-                    Upload File
-                    <input 
-                      type="file" 
-                      hidden 
-                      accept={val.config?.allowedExtensions || undefined}
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          formik.setFieldValue(val.id, e.target.files[0]);
-                        }
-                      }}
-                    />
-                  </Button>
                 )}
 
                 {getFieldError(val.id) && (
-                  <FormHelperText error sx={{ textAlign: "center", mt: 1 }}>
+                  <FormHelperText error sx={{ textAlign: "left", mt: 1 }}>
                     {getFieldError(val.id)}
                   </FormHelperText>
                 )}
