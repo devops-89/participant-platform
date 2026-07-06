@@ -215,14 +215,26 @@ export default function Signup() {
       const isPassword = field.type === "password" || field.label.toLowerCase().includes("password");
 
       if (isPassword) {
-        validator = (validator as import("yup").StringSchema)
-          .min(8, "Password must be at least 8 characters")
-          .matches(/[A-Z]/, "Password must include at least one uppercase letter")
-          .matches(/[0-9]/, "Password must include at least one number")
-          .matches(
-            /[!@#$%^&*(),.?":{}|<>]/,
-            "Password must include at least one special character"
+        if (field.label.toLowerCase().includes("confirm")) {
+          const originalPasswordField = templateFields.find(
+            (f) => (f.type === "password" || f.label.toLowerCase().includes("password")) && !f.label.toLowerCase().includes("confirm")
           );
+          if (originalPasswordField) {
+            validator = (validator as import("yup").StringSchema).oneOf(
+              [Yup.ref(originalPasswordField.id)],
+              `${field.label} must match ${originalPasswordField.label}`
+            );
+          }
+        } else {
+          validator = (validator as import("yup").StringSchema)
+            .min(8, "Password must be at least 8 characters")
+            .matches(/[A-Z]/, "Password must include at least one uppercase letter")
+            .matches(/[0-9]/, "Password must include at least one number")
+            .matches(
+              /[!@#$%^&*(),.?":{}|<>]/,
+              "Password must include at least one special character"
+            );
+        }
       }
 
       const lowercaseLabel = field.label.toLowerCase();

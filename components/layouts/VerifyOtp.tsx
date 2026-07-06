@@ -175,17 +175,18 @@ export default function VerifyOtp() {
         router.push("/dashboard");
       } catch (error: unknown) {
         const err = error as { response?: { data?: { message?: string } }, message?: string };
-        let errorMessage = err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.";
+        let errorMessage = err?.response?.data?.message || err?.message || "OTP is Invalid or Expired";
         
         const lowerMsg = errorMessage.toLowerCase();
-        const isInvalidOtpMessage = lowerMsg.includes("invalid otp");
-        const isExpiredOtpMessage = lowerMsg.includes("otp expired") || lowerMsg.includes("expired");
         
-        if (isExpiredOtpMessage || (isInvalidOtpMessage && canResend)) {
-          errorMessage = "OTP has expired. Please request a new OTP.";
-        } else if (isInvalidOtpMessage) {
-          errorMessage = "Invalid OTP.";
+        if (
+          lowerMsg.includes("validation error") || 
+          lowerMsg.includes("invalid") || 
+          lowerMsg.includes("expired")
+        ) {
+          errorMessage = "OTP is Invalid or Expired";
         }
+        
         showSnackbar(errorMessage, "error");
       } finally {
         setLoading(false);
