@@ -687,8 +687,31 @@ export default function Profile() {
                           return (
                             <MuiTelInput
                               onKeyDown={(e) => {
-                                const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
-                                if (phoneVal.length >= maxLength && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                                const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter"];
+                                if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
+                                  return;
+                                }
+
+                                const input = e.target as HTMLInputElement;
+                                if (input && input.selectionStart !== input.selectionEnd) {
+                                  return; // Allow replacing selected text
+                                }
+
+                                const oldParsed = parsePhoneNumberFromString(phoneVal);
+                                if (oldParsed?.isValid()) {
+                                  e.preventDefault();
+                                  return;
+                                }
+
+                                const currentCountry = parsed?.country || field.config?.defaultCountry || "AE";
+                                const ex = getExampleNumber(currentCountry as any, examples);
+                                if (ex) {
+                                  const maxDigits = ex.number.replace(/\D/g, "").length;
+                                  const currentDigits = phoneVal.replace(/\D/g, "").length;
+                                  if (currentDigits >= maxDigits) {
+                                    e.preventDefault();
+                                  }
+                                } else if (phoneVal.replace(/\D/g, "").length >= 15) {
                                   e.preventDefault();
                                 }
                               }}
@@ -697,15 +720,78 @@ export default function Profile() {
                               name={field.id}
                               label={`${field.label} ${field.required ? "*" : ""}`}
                               value={formik.values[field.id] || ""}
-                              onChange={(value) => {
+                              onChange={(value, info) => {
+                                const currentCountry = info.countryCode || parsed?.country || field.config?.defaultCountry || "AE";
+                                const ex = getExampleNumber(currentCountry as any, examples);
+                                
+                                const phoneVal = formik.values[field.id] || "";
+                                const oldParsed = parsePhoneNumberFromString(phoneVal);
+                                
+                                if (oldParsed?.isValid() && value.length > phoneVal.length) {
+                                  return; // Block typing more digits if it's already a perfectly valid number
+                                }
+
+                                if (ex) {
+                                  const maxDigits = ex.number.replace(/\D/g, "").length;
+                                  const currentDigits = value.replace(/\D/g, "").length;
+                                  if (currentDigits > maxDigits) {
+                                    return; // block typing more digits than the example number allows
+                                  }
+                                } else if (value.replace(/\D/g, "").length > 15) {
+                                  return; // fallback max digits
+                                }
+
                                 formik.setFieldValue(field.id, value);
                                 formik.setFieldTouched(field.id, true, false);
                               }}
-                              defaultCountry={field.config?.defaultCountry || "AE"}
-                              onlyCountries={field.config?.onlyCountries || undefined}
+                              defaultCountry={(() => {
+                                let dc = (field.config?.defaultCountry || "AE") as any;
+                                const oc = field.config?.onlyCountries;
+                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as any;
+                                return dc;
+                              })()}
+                              onlyCountries={(() => {
+                                const oc = field.config?.onlyCountries;
+                                const dc = field.config?.defaultCountry || "AE";
+                                if (oc && oc.length > 0) {
+                                  return Array.from(new Set([...oc, dc]));
+                                }
+                                return undefined;
+                              })()}
                               error={formik.touched[field.id] && Boolean(formik.errors[field.id])}
                               helperText={formik.touched[field.id] && typeof formik.errors[field.id] === "string" ? String(formik.errors[field.id]) : undefined}
-                              sx={textFieldStyles}
+                              sx={{
+                                ...textFieldStyles,
+                                "& .MuiTelInput-Flag": {
+                                  position: "relative",
+                                  "& > *": {
+                                    opacity: 0,
+                                  },
+                                  "&::after": {
+                                     content: '""',
+                                     position: "absolute",
+                                     top: 0,
+                                     left: 0,
+                                     width: "100%",
+                                     height: "100%",
+                                     backgroundImage: `url(https://flagcdn.com/w20/${(() => {
+                                        let dc = (field.config?.defaultCountry || "AE") as any;
+                                        const phoneVal = formik.values[field.id] || "";
+                                        const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
+                                        if (callingCodeMatch) {
+                                          const cc = callingCodeMatch[1];
+                                          const matched = countries.find(c => c.phone === cc);
+                                          if (matched) dc = matched.code;
+                                        }
+                                        return String(dc).toLowerCase();
+                                     })()}.png)`,
+                                     backgroundSize: "cover",
+                                     backgroundPosition: "center",
+                                     backgroundRepeat: "no-repeat",
+                                     pointerEvents: "none"
+                                  }
+                                }
+                              }}
                             />
                           );
                         })()}

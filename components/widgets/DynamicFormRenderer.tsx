@@ -525,8 +525,31 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   <Box>
                     <MuiTelInput
                       onKeyDown={(e) => {
-                        const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
-                        if (phoneVal.length >= maxLength && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                        const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter"];
+                        if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
+                          return;
+                        }
+
+                        const input = e.target as HTMLInputElement;
+                        if (input && input.selectionStart !== input.selectionEnd) {
+                          return; // Allow replacing selected text
+                        }
+
+                        const oldParsed = parsePhoneNumberFromString(phoneVal);
+                        if (oldParsed?.isValid()) {
+                          e.preventDefault();
+                          return;
+                        }
+
+                        const currentCountry = parsed?.country || val.config?.defaultCountry || "IN";
+                        const ex = getExampleNumber(currentCountry as any, examples);
+                        if (ex) {
+                          const maxDigits = ex.number.replace(/\D/g, "").length;
+                          const currentDigits = phoneVal.replace(/\D/g, "").length;
+                          if (currentDigits >= maxDigits) {
+                            e.preventDefault();
+                          }
+                        } else if (phoneVal.replace(/\D/g, "").length >= 15) {
                           e.preventDefault();
                         }
                       }}
@@ -536,14 +559,46 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   required={val.required || val.false}
                   name={val.id}
                   value={formik.values[val.id] || ""}
-                  onChange={(value) => {
+                  onChange={(value, info) => {
+                    const currentCountry = info.countryCode || parsed?.country || val.config?.defaultCountry || "IN";
+                    const ex = getExampleNumber(currentCountry as any, examples);
+                    
+                    const phoneVal = formik.values[val.id] || "";
+                    const oldParsed = parsePhoneNumberFromString(phoneVal);
+                    
+                    if (oldParsed?.isValid() && value.length > phoneVal.length) {
+                      return; // Block typing more digits if it's already a perfectly valid number
+                    }
+
+                    if (ex) {
+                      const maxDigits = ex.number.replace(/\D/g, "").length;
+                      const currentDigits = value.replace(/\D/g, "").length;
+                      if (currentDigits > maxDigits) {
+                        return; // block typing more digits than the example number allows
+                      }
+                    } else if (value.replace(/\D/g, "").length > 15) {
+                      return; // fallback max digits
+                    }
+
                     formik.setFieldValue(val.id, value);
                     formik.setFieldTouched(val.id, true, false);
                   }}
                   onBlur={() => formik.setFieldTouched(val.id, true)}
                   error={Boolean(getFieldError(val.id))}
-                  defaultCountry={(val.config?.defaultCountry || "IN") as any}
-                  forceCallingCode
+                  defaultCountry={(() => {
+                    let dc = (val.config?.defaultCountry || "IN") as any;
+                    const oc = val.config?.onlyCountries;
+                    if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as any;
+                    return dc;
+                  })()}
+                  onlyCountries={(() => {
+                    const oc = val.config?.onlyCountries;
+                    const dc = val.config?.defaultCountry || "IN";
+                    if (oc && oc.length > 0) {
+                      return Array.from(new Set([...oc, dc]));
+                    }
+                    return undefined;
+                  })()}
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: "10px",
@@ -552,6 +607,35 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                       "&:hover fieldset": { borderColor: "#cbd5e1" },
                       "&.Mui-focused fieldset": { borderColor: "#6366f1" },
                     },
+                    "& .MuiTelInput-Flag": {
+                      position: "relative",
+                      "& > *": {
+                        opacity: 0,
+                      },
+                      "&::after": {
+                         content: '""',
+                         position: "absolute",
+                         top: 0,
+                         left: 0,
+                         width: "100%",
+                         height: "100%",
+                         backgroundImage: `url(https://flagcdn.com/w20/${(() => {
+                            let dc = (val.config?.defaultCountry || "IN") as any;
+                            const phoneVal = formik.values[val.id] || "";
+                            const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
+                            if (callingCodeMatch) {
+                              const cc = callingCodeMatch[1];
+                              const matched = countries.find(c => c.phone === cc);
+                              if (matched) dc = matched.code;
+                            }
+                            return String(dc).toLowerCase();
+                         })()}.png)`,
+                         backgroundSize: "cover",
+                         backgroundPosition: "center",
+                         backgroundRepeat: "no-repeat",
+                         pointerEvents: "none"
+                      }
+                    }
                   }}
                 />
                 {getFieldError(val.id) && (

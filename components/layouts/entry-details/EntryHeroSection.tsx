@@ -1,5 +1,5 @@
-import { EmojiEvents, HowToVote, Info } from '@mui/icons-material';
-import { Box, Card, Chip, Typography } from '@mui/material';
+import { EmojiEvents, HowToVote, Info, Group, Person } from '@mui/icons-material';
+import { Box, Card, Chip, Typography, Tooltip } from '@mui/material';
 
 interface EntryHeroSectionProps {
   entry: any;
@@ -280,6 +280,33 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
               return participantName || "Unknown Participant";
             })()}
           </Box>
+          {(() => {
+            const sData = entry?.submission?.data || {};
+            const entryFields = entry?.contest?.entryLevelTemplate?.schema?.fields || entry?.contest?.entry_level_template?.schema?.fields || [];
+            const participationTypeField = entryFields.find((f: any) => {
+                const l = f.label?.toLowerCase() || "";
+                return l.includes("participation type") || l.includes("team or individual");
+            });
+            let type = "";
+            if (participationTypeField) {
+                type = sData[participationTypeField.label] || sData[participationTypeField.id] || "";
+            }
+            if (!type) {
+              type = sData.d9ngw1qqv || "";
+            }
+            
+            if (!type) return null;
+
+            const isTeam = type.toLowerCase().includes("team");
+
+            return (
+              <Tooltip title={`Participation Type: ${type}`} arrow placement="top">
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', ml: 1, pl: 1, borderLeft: `2px solid ${colors.BORDER}` }}>
+                  {isTeam ? <Group fontSize="small" color="primary" /> : <Person fontSize="small" color="primary" />}
+                </Box>
+              </Tooltip>
+            );
+          })()}
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 4, flexWrap: "wrap", mt: 'auto' }}>
