@@ -963,7 +963,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     {val.label}{(val.required || val.false) && " *"}
                   </Typography>
                   
-                  {!formik.values[val.id] && (
+                  {!formik.values[val.id] ? (
                     <Button variant="outlined" component="label" size="small" sx={{ whiteSpace: 'nowrap' }}>
                       Upload File
                       <input 
@@ -977,12 +977,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                         }}
                       />
                     </Button>
-                  )}
-                </Box>
-
-                {formik.values[val.id] && (
-                  <Box sx={{ mt: 2, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
-                    {(() => {
+                  ) : (
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      {(() => {
                         const fileVal = formik.values[val.id];
                         const downloadUrl = initialData?.[`${val.id}_downloadUrl`] || initialData?.[`${val.label}_downloadUrl`] || initialData?.[`${val.label?.trim()}_downloadUrl`];
                         return (
@@ -994,8 +991,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                           />
                         );
                       })()}
-                  </Box>
-                )}
+                    </Box>
+                  )}
+                </Box>
 
                 {getFieldError(val.id) && (
                   <FormHelperText error sx={{ textAlign: "left", mt: 1 }}>

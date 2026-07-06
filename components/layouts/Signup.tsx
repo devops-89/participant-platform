@@ -910,7 +910,7 @@ export default function Signup() {
                               {field.label}{field.required && " *"}
                             </Typography>
                             
-                            {!formik.values[field.id] && (
+                            {!formik.values[field.id] ? (
                               <Button variant="outlined" component="label" size="small" sx={{ whiteSpace: 'nowrap' }}>
                                 Upload File
                                 <input
@@ -924,18 +924,16 @@ export default function Signup() {
                                   }}
                                 />
                               </Button>
+                            ) : (
+                              <Box sx={{ display: "flex", alignItems: "center" }}>
+                                <FilePreview 
+                                  fileVal={formik.values[field.id]} 
+                                  label={field.label} 
+                                  onClear={() => formik.setFieldValue(field.id, null)} 
+                                />
+                              </Box>
                             )}
                           </Box>
-
-                          {formik.values[field.id] && (
-                            <Box sx={{ mt: 2, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
-                              <FilePreview 
-                                fileVal={formik.values[field.id]} 
-                                label={field.label} 
-                                onClear={() => formik.setFieldValue(field.id, null)} 
-                              />
-                            </Box>
-                          )}
                           {getFieldError(field.id) && (
                             <FormHelperText error sx={{ mx: 2, mt: 0.5 }}>
                               {getFieldError(field.id)}
@@ -1097,6 +1095,7 @@ export default function Signup() {
                               })()}
                               value={formik.values[field.id] || ""}
                               sx={{
+                                ...textFieldStyles,
                                 "& .MuiTelInput-Flag": {
                                   position: "relative",
                                   "& > *": {
@@ -1154,7 +1153,6 @@ export default function Signup() {
                               onBlur={() => formik.setFieldTouched(field.id, true)}
                               error={Boolean(getFieldError(field.id))}
                               helperText={getFieldError(field.id) || field.helperText}
-                              sx={textFieldStyles}
                             />
                           );
                         })()}
