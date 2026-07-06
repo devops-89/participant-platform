@@ -1,7 +1,9 @@
 "use client";
 
 import { useAppTheme } from "@/context/ThemeContext";
-import { Visibility, VisibilityOff, Close } from "@mui/icons-material";
+import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
+import { countries } from "@/utils/constant";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
   Autocomplete,
   Box,
@@ -28,20 +30,18 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
+import { getExampleNumber, parsePhoneNumberFromString } from "libphonenumber-js";
+import examples from "libphonenumber-js/examples.mobile.json";
+import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
-import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
-import examples from "libphonenumber-js/examples.mobile.json";
 import * as Yup from "yup";
-import { countries } from "@/utils/constant";
 import { AuthControllers } from "../../api/authControllers";
 import { contestControllers } from "../../api/contestControllers";
-import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
 import { FORM_CONTROLLERS } from "../../api/formControllers";
 import { ContestTemplateField } from "../../types/user";
 import { FilePreview } from "../widgets/FilePreview";

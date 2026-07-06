@@ -1,22 +1,21 @@
 "use client";
 
-import { useAppTheme } from "@/context/ThemeContext";
 import Breadcrumb from "@/components/widgets/Breadcrumb";
-import { Edit as EditIcon, Close as CloseIcon } from "@mui/icons-material";
+import { useAppTheme } from "@/context/ThemeContext";
+import { countries } from "@/utils/constant";
+import { Edit as EditIcon } from "@mui/icons-material";
 import {
   Avatar,
   Box,
   Button,
   Checkbox,
   Collapse,
-  Container,
   Divider,
   FormControl,
   FormControlLabel,
   FormHelperText,
   FormLabel,
   Grid,
-  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -24,21 +23,20 @@ import {
   RadioGroup,
   Select,
   TextField,
-  Typography,
+  Typography
 } from "@mui/material";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
-import { useEffect, useState } from "react";
-import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
-import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
+import { getExampleNumber, parsePhoneNumberFromString } from "libphonenumber-js";
 import examples from "libphonenumber-js/examples.mobile.json";
+import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import { useEffect, useState } from "react";
 import * as Yup from "yup";
 import { AuthControllers } from "../../api/authControllers";
 import { ContestTemplateField } from "../../types/user";
 import { FilePreview } from "../widgets/FilePreview";
-import { countries } from "@/utils/constant";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 

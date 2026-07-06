@@ -55,6 +55,7 @@ export default function VerifyOtp() {
       }, 1000);
       return () => clearInterval(interval);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCanResend(true);
     }
   }, [timer]);

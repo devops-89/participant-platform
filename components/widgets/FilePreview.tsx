@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Box, IconButton, Typography, Dialog } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { Box, Dialog, IconButton, Typography } from '@mui/material';
+import { useEffect, useState } from 'react';
 
 export const FilePreview = ({ fileVal, onClear, label, previewUrl }: { fileVal: any, onClear: () => void, label?: string, previewUrl?: string }) => {
   const [url, setUrl] = useState<string>("");
