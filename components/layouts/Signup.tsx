@@ -1101,6 +1101,7 @@ export default function Signup() {
                                 }
                               }}
                               fullWidth
+                              forceCallingCode
                               id={field.id}
                               name={field.id}
                               label={field.label}

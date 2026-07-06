@@ -721,6 +721,7 @@ export default function Profile() {
                                 }
                               }}
                               fullWidth
+                              forceCallingCode
                               id={field.id}
                               name={field.id}
                               label={`${field.label} ${field.required ? "*" : ""}`}
