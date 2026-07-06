@@ -73,9 +73,10 @@ export default function VerifyOtp() {
       showSnackbar("OTP resent successfully", "success");
       setTimer(60);
       setCanResend(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
       showSnackbar(
-        error?.response?.data?.message || "Failed to resend OTP",
+        err?.response?.data?.message || "Failed to resend OTP",
         "error"
       );
     } finally {
@@ -172,7 +173,8 @@ export default function VerifyOtp() {
         }
         
         router.push("/dashboard");
-      } catch (err: any) {
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } }, message?: string };
         let errorMessage = err?.response?.data?.message || err?.message || "Invalid OTP. Please try again.";
         
         const lowerMsg = errorMessage.toLowerCase();
@@ -399,7 +401,7 @@ export default function VerifyOtp() {
             
             <Box sx={{ mt: 3 }}>
               <Typography variant="body2" sx={{ color: colors.TEXT_SECONDARY }}>
-                Didn't receive the code?{" "}
+                Didn&apos;t receive the code?{" "}
                 {canResend ? (
                   <Button 
                     variant="text" 

@@ -1,29 +1,28 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, IconButton, Tooltip, CircularProgress, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { AuthControllers } from "@/api/authControllers";
+import Breadcrumb from "@/components/widgets/Breadcrumb";
+import { useSnackbar } from "@/context/SnackbarContext";
 import { useAppTheme } from "@/context/ThemeContext";
-import { CloudUpload, Visibility, Edit } from "@mui/icons-material";
+import { CloudUpload, Edit, Visibility } from "@mui/icons-material";
+import { Avatar, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
+
+interface TemplateField { id: string; label?: string; type?: string; [key: string]: unknown; }
+interface Contest { id?: string; _id?: string; name?: string; title?: string; status?: string; entryLevelTemplate?: { schema?: { fields?: TemplateField[] } }; userLevelTemplate?: { schema?: { fields?: TemplateField[] } }; [key: string]: unknown; }
+interface Entry { id?: string; status?: string; score?: number; contest_id?: string; contest?: Contest; participant?: { status?: string; [key: string]: unknown; }; submission?: { data?: Record<string, string> }; [key: string]: unknown; }
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Breadcrumb from "@/components/widgets/Breadcrumb";
-import { entryControllers } from "@/api/entryControllers";
-import { contestControllers } from "@/api/contestControllers";
-import { AuthControllers } from "@/api/authControllers";
-import { useSnackbar } from "@/context/SnackbarContext";
-import moment from "moment";
-
+import { useEffect, useState } from "react";
 const Entries = () => {
   const { colors } = useAppTheme();
   const router = useRouter();
   const { showSnackbar } = useSnackbar();
 
-  const [entries, setEntries] = useState<any[]>([]);
-  const [templateFields, setTemplateFields] = useState<any[]>([]);
-  const [userFields, setUserFields] = useState<any[]>([]);
-  const [contestTitle, setContestTitle] = useState<string>("Contest");
+  const [entries, setEntries] = useState<Entry[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [isBanned, setIsBanned] = useState(false);
-  const [activeContests, setActiveContests] = useState<any[]>([]);
+  const [activeContests, setActiveContests] = useState<Contest[]>([]);
   const [contestPopupOpen, setContestPopupOpen] = useState(false);
   const [selectedContestIdPopup, setSelectedContestIdPopup] = useState<string>("");
 
@@ -31,7 +30,7 @@ const Entries = () => {
     const fetchEntries = async () => {
       try {
         setLoading(true);
-        let userObj: any = null;
+        let userObj: { status?: string; participants?: Array<{ status?: string; contest?: { status?: string }; entries?: unknown[] }> } | null = null;
         
         try {
           const meRes = await AuthControllers.getParticipants();
@@ -47,7 +46,7 @@ const Entries = () => {
           try {
             const userStr = localStorage.getItem("user");
             if (userStr) userObj = JSON.parse(userStr);
-          } catch(e) {}
+          } catch {}
         }
 
         if (userObj) {
@@ -56,14 +55,14 @@ const Entries = () => {
           }
           if (userObj.participants && userObj.participants.length > 0) {
             const active = userObj.participants.filter(
-              (p: any) => p.status !== "Banned" && p.status !== "banned" && p.status !== "rejected" && p.status !== "Rejected" && p.contest && (p.contest.status === "Published" || p.contest.status === "published")
+              (p) => p.status !== "Banned" && p.status !== "banned" && p.status !== "rejected" && p.status !== "Rejected" && p.contest && (p.contest.status === "Published" || p.contest.status === "published")
             );
-            setActiveContests(active.map((p: any) => p.contest));
+            setActiveContests(active.map((p) => p.contest as Contest));
 
-            const allEntries = userObj.participants.flatMap((p: any) => {
+            const allEntries = active.flatMap(p => {
               if (p.entries && Array.isArray(p.entries)) {
-                return p.entries.map((entry: any) => ({
-                  ...entry,
+                return p.entries.map((entry: unknown) => ({
+                  ...(typeof entry === 'object' && entry ? entry : {}),
                   contest: p.contest,
                   participant: p
                 }));
@@ -74,9 +73,10 @@ const Entries = () => {
             setEntries(allEntries);
           }
         }
-      } catch (error: any) {
-        console.error("Failed to fetch entries:", error);
-        showSnackbar(error?.response?.data?.message || "Failed to load entries.", "error");
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } } };
+        console.error("Failed to fetch entries:", err);
+        showSnackbar(err?.response?.data?.message || "Failed to load entries.", "error");
       } finally {
         setLoading(false);
       }
@@ -84,22 +84,7 @@ const Entries = () => {
     fetchEntries();
   }, [showSnackbar]);
 
-  const getEntryName = (entry: any) => {
-    let entryTitle = "Untitled Entry";
-    const entryData = entry?.submission?.data;
-    if (entryData) {
-      const titleField = templateFields.find((f: any) => f.label?.toLowerCase().includes("title") || f.label?.toLowerCase().includes("project"));
-      if (titleField && entryData[titleField.id]) {
-        entryTitle = entryData[titleField.id];
-      } else {
-        const firstText = templateFields.find((f: any) => f.type === 'textfield');
-        if (firstText && entryData[firstText.id]) {
-          entryTitle = entryData[firstText.id];
-        }
-      }
-    }
-    return entryTitle;
-  };
+
 
   return (
     <Box sx={{ p: 4, mt: 8 }}>
@@ -120,7 +105,7 @@ const Entries = () => {
                 setContestPopupOpen(true);
               } else if (activeContests.length === 1) {
                 const contestId = activeContests[0].id || activeContests[0]._id;
-                const hasEntry = entries.some((entry: any) => entry.contest_id === contestId || (entry.contest?.id || entry.contest?._id) === contestId);
+                const hasEntry = entries.some((entry) => entry.contest_id === contestId || (entry.contest?.id || entry.contest?._id) === contestId);
                 if (hasEntry) {
                   showSnackbar("You have already submitted an entry for this contest.", "warning");
                 } else {
@@ -178,21 +163,18 @@ const Entries = () => {
                 const subData = entry?.submission?.data || {};
                 const contest = entry?.contest || {};
                 
-                let currentTemplateFields: any[] = [];
-                let currentUserFields: any[] = [];
+                let currentTemplateFields: TemplateField[] = [];
 
-                if (contest.entryLevelTemplate?.schema?.fields) {
+                if (contest?.entryLevelTemplate?.schema?.fields) {
                   currentTemplateFields = contest.entryLevelTemplate.schema.fields;
                 }
-                if (contest.userLevelTemplate?.schema?.fields) {
-                  currentUserFields = contest.userLevelTemplate.schema.fields;
-                }
                 
-                const entryTitleField = currentTemplateFields.find((f: any) => {
+                const entryTitleField = currentTemplateFields.find((f) => {
                   const l = f.label?.toLowerCase() || "";
                   return l.includes("title") || l.includes("project") || l.includes("name");
                 });
-                const entryTitle = entryTitleField ? (subData[entryTitleField.label] || subData[entryTitleField.id]) : (subData.ho1p00z0q || subData["Innovation Title"]);
+                const entryTitleRaw = entryTitleField ? (subData[entryTitleField.label || ""] || subData[entryTitleField.id]) : (subData.ho1p00z0q || subData["Innovation Title"] || "");
+                const entryTitle = typeof entryTitleRaw === "string" ? entryTitleRaw : String(entryTitleRaw || "");
 
                 let authorName = "Unknown";
                 try {
@@ -201,12 +183,12 @@ const Entries = () => {
                     const u = JSON.parse(uStr);
                     authorName = u.fullName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown";
                   }
-                } catch(e) {}
+                } catch {}
 
-                const thumbnailField = currentTemplateFields.find((f: any) => f.label?.toLowerCase().includes("thumbnail") || f.label?.toLowerCase().includes("image"));
+                const thumbnailField = currentTemplateFields.find((f) => f.label?.toLowerCase().includes("thumbnail") || f.label?.toLowerCase().includes("image"));
                 let thumbnailUrl = "";
                 if (thumbnailField) {
-                  thumbnailUrl = subData[`${thumbnailField.id}_downloadUrl`] || subData[`${thumbnailField.label}_downloadUrl`] || subData[thumbnailField.id] || subData[thumbnailField.label] || "";
+                  thumbnailUrl = subData[`${thumbnailField.id}_downloadUrl`] || subData[`${thumbnailField.label || ""}_downloadUrl`] || subData[thumbnailField.id] || subData[thumbnailField.label || ""] || "";
                 }
                 
                 if (!thumbnailUrl) {
@@ -303,7 +285,7 @@ const Entries = () => {
                             default: return status.charAt(0).toUpperCase() + status.slice(1);
                           }
                         };
-                        let uiStatus = getMappedStatus(finalStatus);
+                        const uiStatus = getMappedStatus(finalStatus);
 
                         return (
                           <Chip 
@@ -363,7 +345,7 @@ const Entries = () => {
               label="Select Contest"
               onChange={(e) => setSelectedContestIdPopup(e.target.value as string)}
             >
-              {activeContests.map((c: any) => (
+              {activeContests.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name || c.title || "Contest"}
                 </MenuItem>
@@ -375,7 +357,7 @@ const Entries = () => {
           <Button onClick={() => setContestPopupOpen(false)} color="inherit">Cancel</Button>
           <Button 
             onClick={() => {
-              const hasEntry = entries.some((entry: any) => entry.contest_id === selectedContestIdPopup || (entry.contest?.id || entry.contest?._id) === selectedContestIdPopup);
+              const hasEntry = entries.some((entry) => entry.contest_id === selectedContestIdPopup || (entry.contest?.id || entry.contest?._id) === selectedContestIdPopup);
               if (hasEntry) {
                 showSnackbar("You have already submitted an entry for this contest.", "warning");
                 setContestPopupOpen(false);

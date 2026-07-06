@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { ContestTemplateField } from "@/types/user";
 import { Box, Card, Typography, CircularProgress } from "@mui/material";
 import { useAppTheme } from "@/context/ThemeContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,7 +21,7 @@ const AddEntry = () => {
   const urlContestId = searchParams.get("contestId");
 
   const [contestId, setContestId] = useState<string | null>(null);
-  const [templateFields, setTemplateFields] = useState<any[]>([]);
+  const [templateFields, setTemplateFields] = useState<ContestTemplateField[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ const AddEntry = () => {
               fetchedContestId = urlContestId;
               hasLocalContestData = true;
             }
-          } catch (err) {
+          } catch (err: unknown) {
             console.error("Failed to fetch contest by ID from URL", err);
           }
         }
@@ -62,7 +63,7 @@ const AddEntry = () => {
                 fetchedContestId = user.contestId;
               }
             }
-          } catch(e) {}
+          } catch {}
         }
 
         if (!hasLocalContestData || !templateFieldsFromApi) {
@@ -96,33 +97,33 @@ const AddEntry = () => {
           setContestId(fetchedContestId);
 
           // Check if this participant already has an entry for this contest
-          let userObj: any = null;
+          let userObj: unknown = null;
           try {
             const meRes = await AuthControllers.getParticipants();
             if (meRes?.data) {
               userObj = meRes.data;
               localStorage.setItem("user", JSON.stringify(userObj));
             }
-          } catch (e) {
-            console.error("Failed to fetch /me", e);
+          } catch {
+            console.error("Failed to fetch /me");
           }
 
           if (!userObj) {
             try {
               const userStr = localStorage.getItem("user");
               if (userStr) userObj = JSON.parse(userStr);
-            } catch (e) {}
+            } catch {}
           }
 
           if (userObj) {
-            if (userObj.status?.toLowerCase() === "banned") {
+            if ((userObj as { status?: string; participants?: Array<{ contest_id?: string; contest?: { id?: string; _id?: string; status?: string; }; status?: string; entries?: unknown[]; }> }).status?.toLowerCase() === "banned") {
               showSnackbar("You have been banned. You cannot submit entries.", "error");
               router.push("/entries");
               return;
             }
-            if (userObj.participants) {
-              const participantObj = userObj.participants.find(
-                (p: any) => p.contest_id === fetchedContestId || (p.contest && (p.contest.id === fetchedContestId || p.contest._id === fetchedContestId))
+            if ((userObj as { status?: string; participants?: Array<{ contest_id?: string; contest?: { id?: string; _id?: string; status?: string; }; status?: string; entries?: unknown[]; }> }).participants) {
+              const participantObj = (userObj as { status?: string; participants?: Array<{ contest_id?: string; contest?: { id?: string; _id?: string; status?: string; }; status?: string; entries?: unknown[]; }> }).participants?.find(
+                (p: { contest_id?: string; contest?: { id?: string; _id?: string; status?: string; }; status?: string; entries?: unknown[]; }) => p.contest_id === fetchedContestId || (p.contest && (p.contest.id === fetchedContestId || p.contest._id === fetchedContestId))
               );
               if (participantObj) {
                 const contestStatus = participantObj.contest?.status;
@@ -159,16 +160,16 @@ const AddEntry = () => {
       }
     };
     fetchTemplate();
-  }, [showSnackbar, router]);
+  }, [showSnackbar, router, urlContestId]);
 
-  const submitForm = async (values: any, status: string) => {
+  const submitForm = async (values: Record<string, unknown>, status: string) => {
     try {
       if (!contestId) return;
 
       const formData = new FormData();
       Object.keys(values).forEach(key => {
         if (values[key] !== undefined && values[key] !== null && values[key] !== "") {
-          formData.append(key, values[key]);
+          formData.append(key, values[key] as string | Blob);
         }
       });
       formData.append("status", status);
@@ -179,20 +180,20 @@ const AddEntry = () => {
       await entryControllers.createEntry(contestId, formData);
       showSnackbar(`Entry ${status === 'draft' ? 'saved as draft' : 'added'} successfully!`, "success");
       router.push("/entries");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.log(err);
       showSnackbar(
-        err?.response?.data?.message || `Failed to ${status === 'draft' ? 'save draft' : 'add entry'}`,
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || `Failed to ${status === 'draft' ? 'save draft' : 'add entry'}`,
         "error"
       );
     }
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: Record<string, unknown>) => {
     await submitForm(values, "pending");
   };
 
-  const handleDraft = async (values: any) => {
+  const handleDraft = async (values: Record<string, unknown>) => {
     await submitForm(values, "draft");
   };
 

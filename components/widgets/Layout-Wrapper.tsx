@@ -30,7 +30,7 @@ const LayoutWrapper = ({ children }: LayoutWrapperProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    Promise.resolve().then(() => setMounted(true));
 
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {

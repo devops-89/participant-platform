@@ -1,13 +1,14 @@
+import { ReactNode } from "react";
 import { create } from "zustand";
 
 interface ModalState {
-  content: boolean | any;
-  showModal: (content: any) => void;
+  content: ReactNode | null;
+  showModal: (content: ReactNode) => void;
   hideModal: () => void;
 }
 
 export const useModal = create<ModalState>((set) => ({
-  content: false,
+  content: null,
   showModal: (content) => set({ content }),
-  hideModal: () => set({ content: false }),
+  hideModal: () => set({ content: null }),
 }));

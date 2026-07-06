@@ -24,7 +24,7 @@ const ContestRegistrationPage = () => {
 
   const template_fields = data?.data?.userLevelTemplate?.schema?.fields;
 
-  const handleRegistrationSubmit = async (values: any) => {
+  const handleRegistrationSubmit = async (values: unknown) => {
     try {
       // Assuming a generic API for now. Will need to adjust to actual registration endpoint
       // await authControllers.registerForContest({ data: values }, id);

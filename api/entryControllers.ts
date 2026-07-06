@@ -1,7 +1,11 @@
+import { EntrySubmissionPayload } from "@/types/user";
 import { contestSecuredApi } from "./config";
 
 export const entryControllers = {
-  createEntry: async (contestId: string, data: any) => {
+  createEntry: async (
+    contestId: string,
+    data: EntrySubmissionPayload | FormData
+  ) => {
     try {
       const response = await contestSecuredApi.post(
         `/${contestId}/entries`,
@@ -35,7 +39,11 @@ export const entryControllers = {
     }
   },
 
-  updateEntrySubmission: async (contestId: string, entryId: string, data: any) => {
+  updateEntrySubmission: async (
+    contestId: string,
+    entryId: string,
+    data: EntrySubmissionPayload | FormData
+  ) => {
     try {
       const response = await contestSecuredApi.patch(
         `/${contestId}/entries/${entryId}`,

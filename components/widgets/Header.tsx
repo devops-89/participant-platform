@@ -1,10 +1,10 @@
 "use client";
+import { AuthControllers } from "@/api/authControllers";
 import { useAppTheme } from "@/context/ThemeContext";
 import { LogoutOutlined } from "@mui/icons-material";
 import { Avatar, Box, Button, Paper, Tooltip, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AuthControllers } from "@/api/authControllers";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
@@ -13,7 +13,7 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userName, setUserName] = useState("Participant");
-  const [userEmail, setUserEmail] = useState("");
+
   const router = useRouter();
   const [userAvatar, setUserAvatar] = useState("");
   const { showSnackbar } = useSnackbar();
@@ -56,7 +56,7 @@ const Header = () => {
         }
         
         if (userData?.email) {
-          setUserEmail(userData.email);
+
         }
         
         // Attempt to find an uploaded image in the submission data
@@ -89,7 +89,7 @@ const Header = () => {
         const userStr = localStorage.getItem("user");
         if (userStr) {
            const localUser = JSON.parse(userStr);
-           if (localUser.email) setUserEmail(localUser.email);
+
            if (localUser.firstName || localUser.lastName) {
              setUserName(`${localUser.firstName || ""} ${localUser.lastName || ""}`.trim());
            } else if (localUser.name) {
@@ -108,6 +108,7 @@ const Header = () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("profileUpdated", handleProfileUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -1,38 +1,45 @@
 import CloseIcon from '@mui/icons-material/Close';
 import { Box, Dialog, IconButton, Typography } from '@mui/material';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
-export const FilePreview = ({ fileVal, onClear, label, previewUrl }: { fileVal: any, onClear: () => void, label?: string, previewUrl?: string }) => {
-  const [url, setUrl] = useState<string>("");
-  const [isImage, setIsImage] = useState(false);
-  const [isVideo, setIsVideo] = useState(false);
+export const FilePreview = ({ fileVal, onClear, label, previewUrl }: { fileVal: unknown, onClear: () => void, label?: string, previewUrl?: string }) => {
   const [openModal, setOpenModal] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string>("");
 
   useEffect(() => {
-    let objectUrl = "";
-    if (typeof fileVal === "string") {
-      objectUrl = previewUrl || fileVal;
-      const urlWithoutQuery = objectUrl.split('?')[0];
-      const ext = urlWithoutQuery.split(".").pop()?.toLowerCase() || "";
-      if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-        setIsImage(true);
-        setIsVideo(false);
-      } else if (["mp4", "webm", "ogg", "mov", "mkv", "avi"].includes(ext)) {
-        setIsVideo(true);
-        setIsImage(false);
-      } else {
-        setIsImage(true);
-        setIsVideo(false);
-      }
-      setUrl(objectUrl);
-    } else if (fileVal instanceof File) {
-      objectUrl = URL.createObjectURL(fileVal);
-      setIsImage(fileVal.type.startsWith("image/"));
-      setIsVideo(fileVal.type.startsWith("video/"));
-      setUrl(objectUrl);
-      return () => URL.revokeObjectURL(objectUrl);
+    if (fileVal instanceof File) {
+      const newUrl = URL.createObjectURL(fileVal);
+      Promise.resolve().then(() => setObjectUrl(newUrl));
+      return () => URL.revokeObjectURL(newUrl);
     }
   }, [fileVal]);
+
+  if (!fileVal) return null;
+
+  let url = "";
+  let isImage = false;
+  let isVideo = false;
+
+  if (typeof fileVal === "string") {
+    url = previewUrl || fileVal;
+    const urlWithoutQuery = url.split('?')[0];
+    const ext = urlWithoutQuery.split(".").pop()?.toLowerCase() || "";
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      isImage = true;
+    } else if (["mp4", "webm", "ogg", "mov", "mkv", "avi"].includes(ext)) {
+      isVideo = true;
+    } else {
+      isImage = true;
+    }
+  } else if (fileVal instanceof File) {
+    url = objectUrl;
+    isImage = fileVal.type.startsWith("image/");
+    isVideo = fileVal.type.startsWith("video/");
+  }
+
+  // Prevent rendering if URL isn't ready for a File
+  if (fileVal instanceof File && !url) return null;
 
   if (!fileVal) return null;
 
@@ -68,10 +75,11 @@ export const FilePreview = ({ fileVal, onClear, label, previewUrl }: { fileVal: 
               alignItems: 'center', 
               justifyContent: 'center',
               cursor: 'pointer',
-              border: '1px solid #e2e8f0'
+              border: '1px solid #e2e8f0',
+              position: 'relative'
             }}
           >
-            <img src={url} alt={label || "Preview"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <Image src={url} alt={label || "Preview"} fill style={{ objectFit: "cover" }} unoptimized />
           </Box>
         ) : isVideo ? (
           <Box 
@@ -130,7 +138,9 @@ export const FilePreview = ({ fileVal, onClear, label, previewUrl }: { fileVal: 
             <CloseIcon />
           </IconButton>
           {isImage ? (
-            <img src={url} alt="Full Preview" style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
+            <Box sx={{ position: 'relative', width: '80vw', height: '80vh' }}>
+              <Image src={url} alt="Full Preview" fill style={{ objectFit: 'contain', borderRadius: '8px' }} unoptimized />
+            </Box>
           ) : isVideo ? (
              <video src={url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
           ) : null}

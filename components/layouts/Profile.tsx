@@ -40,6 +40,14 @@ import { FilePreview } from "../widgets/FilePreview";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
+export interface UserProfileData {
+  participant_profile_data?: Record<string, string>;
+  participantProfile?: { submission?: { data?: Record<string, string> } };
+  participants?: { contest?: { userLevelTemplate?: { schema?: { fields?: ContestTemplateField[] } } }; submission?: { data?: Record<string, string> } }[];
+  formTemplate?: { schema?: { fields?: ContestTemplateField[] } };
+  [key: string]: unknown;
+}
+
 export default function Profile() {
   const { colors } = useAppTheme();
   const { showSnackbar } = useSnackbar();
@@ -48,8 +56,8 @@ export default function Profile() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [templateFields, setTemplateFields] = useState<ContestTemplateField[]>([]);
-  const [userData, setUserData] = useState<any>(null);
-  const [apiCountries, setApiCountries] = useState<any[]>([]);
+  const [userData, setUserData] = useState<UserProfileData | null>(null);
+  const [apiCountries, setApiCountries] = useState<{ code?: string; name?: string; dialCode?: string; [key: string]: unknown }[]>([]);
 
   const fetchProfileData = async () => {
     try {
@@ -67,7 +75,7 @@ export default function Profile() {
       
       // Exclude password fields and email
       const filteredFields = fields.filter(
-        (f: any) => f.type !== "password" && f.label?.toLowerCase() !== "confirm password" && f.label?.toLowerCase() !== "email"
+        (f: ContestTemplateField) => f.type !== "password" && f.label?.toLowerCase() !== "confirm password" && f.label?.toLowerCase() !== "email"
       );
       setTemplateFields(filteredFields);
       // Fetch countries
@@ -83,7 +91,8 @@ export default function Profile() {
   };
 
   useEffect(() => {
-    fetchProfileData();
+    Promise.resolve().then(() => fetchProfileData());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const subData = (userData?.participant_profile_data && Object.keys(userData.participant_profile_data).length > 0) 
@@ -92,25 +101,25 @@ export default function Profile() {
   const formik = useFormik({
     enableReinitialize: true,
     initialValues: templateFields.reduce((acc, field) => {
-      let val = subData[field.id] || "";
+      let val: string | number | boolean = subData[field.id] || "";
       if (field.type === "file_upload" || field.type === "image") {
         val = subData[field.id] || subData['file'] || userData?.participant_profile_data?.file || "";
       }
       if (field.type === "boolean" || field.type === "switch" || field.type === "checkbox") {
-        val = val === "true" || val === true;
+        val = String(val) === "true";
       }
       acc[field.id] = val;
       return acc;
-    }, {} as Record<string, any>),
+    }, {} as Record<string, string | number | boolean | File | null>),
     validationSchema: Yup.object(
       templateFields.reduce((acc, field) => {
-        let validator: any = Yup.string();
+        let validator: Yup.AnySchema = Yup.string();
 
         if (field.required) {
           validator = validator.test(
             "required-trim",
             `${field.label} is required`,
-            (value: any) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
+            (value: string | number | boolean | null | undefined) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
           );
         }
 
@@ -127,7 +136,7 @@ export default function Profile() {
             validator = validator.test(
               "fileSize",
               `File size is too large (Max: ${field.config.maxSize}MB)`,
-              (value: any) => {
+              (value) => {
                 if (!value) return true;
                 if (value instanceof File) return value.size <= maxSize;
                 return true;
@@ -136,13 +145,13 @@ export default function Profile() {
           }
 
           if (field.config?.allowedExtensions) {
-            const allowed = typeof field.config.allowedExtensions === 'string' 
+            const allowed = (typeof field.config.allowedExtensions === 'string' 
               ? field.config.allowedExtensions.split(",").map((e: string) => e.trim().toLowerCase()) 
-              : field.config.allowedExtensions;
+              : field.config.allowedExtensions) as string[];
             validator = validator.test(
               "fileType",
               `Unsupported file type (Allowed: ${allowed.join(", ")})`,
-              (value: any) => {
+              (value) => {
                 if (!value) return true;
                 if (value instanceof File) {
                   const extMatch = value.name.match(/\.[0-9a-z]+$/i);
@@ -158,7 +167,7 @@ export default function Profile() {
             validator = validator.test(
               "fileRequired",
               `${field.label} is required`,
-              (value: any) => {
+              (value) => {
                 return value !== null && value !== undefined && value !== "";
               }
             );
@@ -169,23 +178,23 @@ export default function Profile() {
           validator = validator.test(
             "isValidTel",
             "Invalid phone number",
-            (value: any) => {
+            (value) => {
               if (!value) return !field.required;
-              return matchIsValidTel(value);
+              return matchIsValidTel(String(value));
             }
           );
         }
 
         const isPassword = field.type === "password" || (field.label && field.label.toLowerCase().includes("password"));
         if (isPassword) {
-          validator = validator
+          validator = Yup.string()
             .min(8, "Password must be at least 8 characters")
             .matches(/[A-Z]/, "Password must include at least one uppercase letter")
             .matches(/[0-9]/, "Password must include at least one number")
             .matches(
               /[!@#$%^&*(),.?":{}|<>]/,
               "Password must include at least one special character"
-            );
+            ) as Yup.AnySchema;
         }
 
         // Date validation
@@ -194,30 +203,30 @@ export default function Profile() {
           (field.label && (field.label.toLowerCase().includes("date of birth") || field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("birth")))
         ) {
           validator = Yup.mixed()
-            .test("isValidDate", "Invalid date format", (value: any) => {
+            .test("isValidDate", "Invalid date format", (value) => {
               if (!value) return !field.required;
-              return dayjs(value).isValid();
+              return dayjs(value as string | number | Date).isValid();
             });
 
           if ((field.label && (field.label.toLowerCase().includes("dob") || field.label.toLowerCase().includes("birth") || field.label.toLowerCase().includes("date of birth"))) || field.config?.disableFuture) {
-            validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
+            validator = validator.test("noFutureDate", "Date cannot be in the future", (value) => {
               if (!value) return true;
-              return dayjs(value).isBefore(dayjs().endOf('day'));
+              return dayjs(value as string | number | Date).isBefore(dayjs().endOf('day'));
             });
           }
 
           if (field.label && field.label.toLowerCase().includes("birth")) {
-             validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: any) => {
+             validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val) => {
                 if (!val) return true;
-                const diff = dayjs().diff(dayjs(val), 'year');
+                const diff = dayjs().diff(dayjs(val as string | number | Date), 'year');
                 return diff >= 10 && diff <= 25;
              });
           }
 
           if (field.config?.disablePast) {
-            validator = validator.test("noPastDate", "Date cannot be in the past", (value: any) => {
+            validator = validator.test("noPastDate", "Date cannot be in the past", (value) => {
               if (!value) return true;
-              return dayjs(value).isAfter(dayjs().startOf('day'));
+              return dayjs(value as string | number | Date).isAfter(dayjs().startOf('day'));
             });
           }
         }
@@ -232,7 +241,7 @@ export default function Profile() {
           field.label.toLowerCase() === "father's name" ||
           field.label.toLowerCase() === "mother's name")
         ) {
-          validator = validator.matches(
+          validator = (validator as Yup.StringSchema).matches(
             /^[A-Za-z\s]+$/,
             "Only alphabets and spaces are allowed"
           );
@@ -240,7 +249,7 @@ export default function Profile() {
         
         // School Name validation
         if (field.label && field.label.toLowerCase().includes("school name")) {
-          validator = validator.matches(
+          validator = (validator as Yup.StringSchema).matches(
             /^[A-Za-z0-9\s'.-]+$/,
             "Only alphabets, numbers, and basic punctuation are allowed"
           );
@@ -248,14 +257,14 @@ export default function Profile() {
 
         // Country of Residence validation
         if (field.type !== "countrySelector" && field.label && field.label.toLowerCase().includes("country of residence")) {
-          validator = validator.matches(
+          validator = (validator as Yup.StringSchema).matches(
             /^[A-Za-z\s'-]+$/,
             "Only alphabetic characters are allowed"
           );
         }
 
         if (field.label && field.label.toLowerCase() === "innovation title") {
-          validator = validator.matches(
+          validator = (validator as Yup.StringSchema).matches(
             /^[A-Za-z\s]+$/,
             "Only alphabets and spaces are allowed"
           );
@@ -265,7 +274,7 @@ export default function Profile() {
           field.type === "email" ||
           (field.label && field.label.toLowerCase().includes("email"))
         ) {
-          validator = validator.matches(
+          validator = (validator as Yup.StringSchema).matches(
             /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
             "Invalid email format"
           );
@@ -273,7 +282,7 @@ export default function Profile() {
 
         acc[field.id] = validator;
         return acc;
-      }, {} as Record<string, any>)
+      }, {} as Record<string, Yup.AnySchema>)
     ),
     onSubmit: async (values) => {
       // Check if any value actually changed before sending to backend
@@ -299,23 +308,23 @@ export default function Profile() {
             const fieldMatch = templateFields.find(f => f.id === key);
             if (fieldMatch && (fieldMatch.type === "file_upload" || fieldMatch.type === "image")) {
               if (values[key] instanceof File) {
-                payload.append(key, values[key]);
+                payload.append(key, values[key] as Blob);
               } else if (typeof values[key] === "string") {
-                payload.append(key, values[key]);
+                payload.append(key, values[key] as string);
               }
             } else {
-              payload.append(key, values[key]);
+              payload.append(key, String(values[key]));
             }
           }
         });
 
-        await AuthControllers.updateUserDetails(userData?.id, payload);
+        await AuthControllers.updateUserDetails(userData?.id as string, payload);
         
         showSnackbar("Profile updated successfully!", "success");
         await fetchProfileData(); // Fetch latest data
         window.dispatchEvent(new Event("profileUpdated")); // Notify Header to update avatar/details
         setIsEditing(false); // Close edit view after successful update
-      } catch (error) {
+      } catch {
         showSnackbar("Failed to update profile", "error");
       } finally {
         setIsUpdating(false);
@@ -357,9 +366,9 @@ export default function Profile() {
   if (!foundAvatar && userData?.participant_profile_data?.file) {
     foundAvatar = userData.participant_profile_data.file;
   }
-  if (!foundAvatar) foundAvatar = userData?.avatarDownloadUrl || userData?.avatarUrl || "";
+  if (!foundAvatar) foundAvatar = (userData?.avatarDownloadUrl as string) || (userData?.avatarUrl as string) || "";
 
-  const userName = userData?.fullName || userData?.firstName || "Participant";
+  const userName = (userData?.fullName as string) || (userData?.firstName as string) || "Participant";
   const displayFields = templateFields.filter(f => f.type !== "file_upload" && f.type !== "image");
 
   return (
@@ -443,7 +452,7 @@ export default function Profile() {
                 
                 <Box sx={{ mt: 1, textAlign: "center" }}>
                   <Typography variant="body1" sx={{ color: colors.TEXT_SECONDARY, fontWeight: 500 }}>
-                    {userData?.email || "Not Provided"}
+                    {(userData?.email as string) || "Not Provided"}
                   </Typography>
                 </Box>
               </Box>
@@ -458,9 +467,9 @@ export default function Profile() {
                     
                     // Format dates safely
                     if (field.type === "datePicker" && val) {
-                      val = dayjs(val).format("MMMM D, YYYY");
+                      val = dayjs(val as string | number | Date).format("MMMM D, YYYY");
                     } else if (field.type === "boolean" || field.type === "switch" || field.type === "checkbox") {
-                      val = val === "true" || val === true ? "Yes" : "No";
+                      val = val === "true" || (val as unknown) === true ? "Yes" : "No";
                     }
 
                     return (
@@ -535,9 +544,9 @@ export default function Profile() {
                             onBlur={formik.handleBlur}
                             sx={textFieldStyles}
                           >
-                            {field.options?.map((opt: any, i: number) => (
-                              <MenuItem key={i} value={opt}>
-                                {opt}
+                            {field.options?.map((opt: { label?: string; value?: string } | string, i: number) => (
+                              <MenuItem key={i} value={typeof opt === 'string' ? opt : opt.value}>
+                                {String(typeof opt === 'string' ? opt : opt.label || opt.value || "")}
                               </MenuItem>
                             ))}
                           </Select>
@@ -593,8 +602,8 @@ export default function Profile() {
                                 <input
                                   type="file"
                                   hidden
-                                  accept={field.config?.allowedExtensions || undefined}
-                                  onChange={(e: any) => {
+                                  accept={(field.config?.allowedExtensions as string) || undefined}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                     if (e.target.files && e.target.files.length > 0) {
                                       formik.setFieldValue(field.id, e.target.files[0]);
                                     }
@@ -651,12 +660,12 @@ export default function Profile() {
                             value={String(formik.values[field.id] || "")}
                             onChange={formik.handleChange}
                           >
-                            {field.options?.map((opt: any, i: number) => (
+                            {field.options?.map((opt: { label?: string; value?: string } | string, i: number) => (
                               <FormControlLabel
                                 key={i}
-                                value={opt}
+                                value={typeof opt === 'string' ? opt : opt.value}
                                 control={<Radio sx={{ color: colors.PRIMARY, "&.Mui-checked": { color: colors.PRIMARY } }} />}
-                                label={<Typography sx={{ color: colors.TEXT_PRIMARY }}>{opt}</Typography>}
+                                label={<Typography sx={{ color: colors.TEXT_PRIMARY }}>{String(typeof opt === 'string' ? opt : opt.label || opt.value || "")}</Typography>}
                               />
                             ))}
                           </RadioGroup>
@@ -674,11 +683,11 @@ export default function Profile() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         {(() => {
-                          const phoneVal = formik.values[field.id] || "";
+                          const phoneVal = String(formik.values[field.id] || "");
                           const parsed = parsePhoneNumberFromString(phoneVal);
-                          const countryCode = parsed?.country || field.config?.defaultCountry || "AE";
-                          const example = getExampleNumber(countryCode as any, examples);
-                          const maxLength = example ? example.formatInternational().length : 15;
+
+
+                          
 
                           return (
                             <MuiTelInput
@@ -700,7 +709,7 @@ export default function Profile() {
                                 }
 
                                 const currentCountry = parsed?.country || field.config?.defaultCountry || "AE";
-                                const ex = getExampleNumber(currentCountry as any, examples);
+                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
                                 if (ex) {
                                   const maxDigits = ex.number.replace(/\D/g, "").length;
                                   const currentDigits = phoneVal.replace(/\D/g, "").length;
@@ -715,12 +724,12 @@ export default function Profile() {
                               id={field.id}
                               name={field.id}
                               label={`${field.label} ${field.required ? "*" : ""}`}
-                              value={formik.values[field.id] || ""}
+                              value={String(formik.values[field.id] || "")}
                               onChange={(value, info) => {
-                                const currentCountry = info.countryCode || parsed?.country || field.config?.defaultCountry || "AE";
-                                const ex = getExampleNumber(currentCountry as any, examples);
+                                const currentCountry = (info.countryCode as import("libphonenumber-js").CountryCode) || parsed?.country || field.config?.defaultCountry || "AE";
+                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
                                 
-                                const phoneVal = formik.values[field.id] || "";
+                                const phoneVal = String(formik.values[field.id] || "");
                                 const oldParsed = parsePhoneNumberFromString(phoneVal);
                                 
                                 if (oldParsed?.isValid() && value.length > phoneVal.length) {
@@ -742,14 +751,14 @@ export default function Profile() {
                                 formik.setFieldTouched(field.id, true, false);
                               }}
                               defaultCountry={(() => {
-                                let dc = (field.config?.defaultCountry || "AE") as any;
-                                const oc = field.config?.onlyCountries;
-                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as any;
+                                const dc = (field.config?.defaultCountry || "AE") as import("libphonenumber-js").CountryCode;
+                                const oc = field.config?.onlyCountries as string[];
+                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as import("libphonenumber-js").CountryCode;
                                 return dc;
                               })()}
                               onlyCountries={(() => {
-                                const oc = field.config?.onlyCountries;
-                                const dc = field.config?.defaultCountry || "AE";
+                                const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];
+                                const dc = (field.config?.defaultCountry || "AE") as import("libphonenumber-js").CountryCode;
                                 if (oc && oc.length > 0) {
                                   return Array.from(new Set([...oc, dc]));
                                 }
@@ -774,8 +783,8 @@ export default function Profile() {
                                       backgroundImage: `url(https://flagcdn.com/w20/${(() => {
                                         let dc = formik.values[`${field.id}_country`];
                                         if (!dc) {
-                                          dc = (field.config?.defaultCountry || "AE") as any;
-                                          const phoneVal = formik.values[field.id] || "";
+                                          dc = (field.config?.defaultCountry || "AE") as import("libphonenumber-js").CountryCode;
+                                          const phoneVal = String(formik.values[field.id] || "");
                                           const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
                                           if (callingCodeMatch) {
                                             const cc = callingCodeMatch[1];
@@ -852,7 +861,7 @@ export default function Profile() {
                             return (
                               <DatePicker
                                 label={`${field.label} ${field.required ? "*" : ""}`}
-                                value={formik.values[field.id] ? dayjs(formik.values[field.id]) : null}
+                                value={formik.values[field.id] ? dayjs(formik.values[field.id] as string | number | Date) : null}
                                 onChange={(val) => {
                                   formik.setFieldValue(field.id, val ? val.toISOString() : null);
                                 }}
@@ -863,8 +872,8 @@ export default function Profile() {
                                     helperText: (formik.touched[field.id] && formik.errors[field.id] as string) || undefined,
                                   }
                                 }}
-                                disablePast={isBirthDate ? false : field.config?.disablePast}
-                                disableFuture={isBirthDate ? true : field.config?.disableFuture}
+                                disablePast={isBirthDate ? false : Boolean(field.config?.disablePast)}
+                                disableFuture={isBirthDate ? true : Boolean(field.config?.disableFuture)}
                                 minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
                                 maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
                               />
@@ -898,8 +907,8 @@ export default function Profile() {
                             onBlur={formik.handleBlur}
                             sx={textFieldStyles}
                           >
-                            {apiCountries.map((country: any) => (
-                              <MenuItem key={country.id} value={country.name || country.id}>
+                            {apiCountries.map((country: { id?: string | number; code?: string; name?: string; dialCode?: string; [key: string]: unknown }) => (
+                              <MenuItem key={String(country.id || country.name || "")} value={String(country.name || country.id)}>
                                 {country.name}
                               </MenuItem>
                             ))}

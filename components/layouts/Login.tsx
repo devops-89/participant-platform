@@ -1,15 +1,13 @@
 "use client";
 
 import { useAppTheme } from "@/context/ThemeContext";
-import { useLogin } from "@/hooks/auth/useLogin";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
+import { useLogin } from "@/hooks/auth/useLogin";
 import { Login_Validation } from "@/utils/validation";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
-  Alert,
   Box,
   Button,
-  Collapse,
   Container,
   IconButton,
   InputAdornment,
@@ -19,19 +17,17 @@ import {
   Typography,
 } from "@mui/material";
 import { useFormik } from "formik";
-import { useRouter } from "next/navigation";
 import React from "react";
 
 import { useSnackbar } from "@/context/SnackbarContext";
 
 const Login = () => {
-  const { colors, mode } = useAppTheme();
-  const router = useRouter();
+  const { colors } = useAppTheme();
   const [showPassword, setShowPassword] = React.useState(false);
   const { showSnackbar } = useSnackbar();
   const { isChecking } = useGuestGuard();
 
-  const { login, isLoading, error: apiError } = useLogin();
+  const { login, isLoading} = useLogin();
 
   const formik = useFormik({
     initialValues: {
@@ -39,10 +35,11 @@ const Login = () => {
       password: "",
     },
     validationSchema: Login_Validation,
-    onSubmit: async (values, { setFieldError }) => {
+    onSubmit: async (values) => {
       try {
         await login(values);
-      } catch (err: any) {
+      } catch (error: unknown) {
+        const err = error as { message?: string };
         const message = err.message || "An error occurred during login";
         
         const lowerMsg = message.toLowerCase();
@@ -188,7 +185,7 @@ const Login = () => {
                     "&:hover": { textDecoration: "underline" },
                   }}
                 >
-                  Don't have an account? Sign Up
+                  Don&apos;t have an account? Sign Up
                 </Link>
                 <Link
                   href="/forgot-password"

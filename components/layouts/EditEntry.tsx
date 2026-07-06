@@ -1,43 +1,26 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { Box, Card, Typography, CircularProgress } from "@mui/material";
-import { useAppTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
-import Breadcrumb from "@/components/widgets/Breadcrumb";
-import DynamicFormRenderer from "@/components/widgets/DynamicFormRenderer";
 import { contestControllers } from "@/api/contestControllers";
 import { entryControllers } from "@/api/entryControllers";
+import Breadcrumb from "@/components/widgets/Breadcrumb";
+import DynamicFormRenderer from "@/components/widgets/DynamicFormRenderer";
 import { useSnackbar } from "@/context/SnackbarContext";
-
+import { useAppTheme } from "@/context/ThemeContext";
+import { Box, Card, CircularProgress, Typography } from "@mui/material";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AuthControllers } from "@/api/authControllers";
+import { ContestTemplateField } from "@/types/user";
 
-const extractS3Key = (url: string) => {
-  if (!url || typeof url !== 'string') return url;
-  if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
-  
-  try {
-    const parsedUrl = new URL(url);
-    const path = parsedUrl.pathname;
-    
-    const entriesIdx = path.indexOf('/entries/');
-    if (entriesIdx !== -1) {
-      return path.slice(entriesIdx + 1);
-    }
-    const usersIdx = path.indexOf('/users/');
-    if (usersIdx !== -1) {
-      return path.slice(usersIdx + 1);
-    }
-    
-    let cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    const segments = cleanPath.split('/');
-    if (segments.length > 1 && (segments[0].includes('bucket') || segments[0].includes('launchpad'))) {
-      cleanPath = segments.slice(1).join('/');
-    }
-    return cleanPath;
-  } catch (e) {
-    return url;
-  }
-};
+
+
+
+type FormDataValue = string | File | null | undefined | boolean | number | string[];
+interface ApiError { response?: { data?: { message?: string } } }
+interface UserObj {
+  status?: string;
+  participants?: Array<{ contest_id?: string; status?: string; contest?: { id?: string; _id?: string } }>;
+  [key: string]: unknown;
+}
 
 const EditEntry = ({ entryId }: { entryId: string }) => {
   const { colors } = useAppTheme();
@@ -45,8 +28,8 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
   const { showSnackbar } = useSnackbar();
 
   const [contestId, setContestId] = useState<string | null>(null);
-  const [templateFields, setTemplateFields] = useState<any[]>([]);
-  const [initialData, setInitialData] = useState<any>({});
+  const [templateFields, setTemplateFields] = useState<ContestTemplateField[]>([]);
+  const [initialData, setInitialData] = useState<Record<string, FormDataValue>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -72,7 +55,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
               fetchedContestId = user.contestId;
             }
           }
-        } catch(e) {}
+        } catch {}
 
         if (!hasLocalContestData || !templateFieldsFromApi) {
           // We will call getContest() which for participants returns their specific contest details directly.
@@ -117,7 +100,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
               }
 
               // Check if user is banned globally or specifically from this contest
-              let userObj: any = null;
+              let userObj: UserObj | null = null;
               try {
                 const meRes = await AuthControllers.getParticipants();
                 if (meRes?.data) {
@@ -131,8 +114,8 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
               if (!userObj) {
                 try {
                   const userStr = localStorage.getItem("user");
-                  if (userStr) userObj = JSON.parse(userStr);
-                } catch (e) {}
+                  if (userStr) userObj = JSON.parse(userStr) as UserObj;
+                } catch {}
               }
 
               if (userObj) {
@@ -142,7 +125,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
                   return;
                 }
                 const participantObj = userObj.participants?.find(
-                  (p: any) => p.contest_id === fetchedContestId || p.contest?.id === fetchedContestId || p.contest?._id === fetchedContestId
+                  (p) => p.contest_id === fetchedContestId || p.contest?.id === fetchedContestId || p.contest?._id === fetchedContestId
                 );
                 if (participantObj && participantObj.status?.toLowerCase() === "banned") {
                   showSnackbar("You have been banned from this contest. You cannot edit this entry.", "error");
@@ -154,7 +137,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
               if (actualEntry?.submission?.data) {
                  let sData = actualEntry.submission.data;
                  if (typeof sData === 'string') {
-                    try { sData = JSON.parse(sData); } catch(e) {}
+                    try { sData = JSON.parse(sData); } catch {}
                  }
                  setInitialData(sData?.data || sData || {});
               }
@@ -178,9 +161,9 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
       }
     };
     fetchTemplate();
-  }, [showSnackbar, router]);
+  }, [showSnackbar, router, entryId]);
 
-  const submitForm = async (values: any, status: string) => {
+  const submitForm = async (values: Record<string, FormDataValue>, status: string) => {
     try {
       if (!contestId) return;
 
@@ -195,13 +178,13 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
               formData.append(key, value);
             } else if (typeof value === "string") {
               const originalValue = initialData[key] || (fieldDef?.label ? initialData[fieldDef.label] : null) || (fieldDef?.label ? initialData[fieldDef.label.trim()] : null) || value;
-              formData.append(key, originalValue);
+              formData.append(key, originalValue as string | Blob);
             } else if (value === null) {
               formData.append(key, "");
             }
           } else {
             if (value !== "") {
-              formData.append(key, value);
+              formData.append(key, String(value));
             } else {
               formData.append(key, "");
             }
@@ -216,20 +199,20 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
       await entryControllers.updateEntrySubmission(contestId, entryId, formData);
       showSnackbar(`Draft ${status === 'draft' ? 'saved' : 'submitted'} successfully!`, "success");
       router.push("/entries");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.log(err);
       showSnackbar(
-        err?.response?.data?.message || `Failed to ${status === 'draft' ? 'save draft' : 'submit entry'}`,
+        (err as ApiError)?.response?.data?.message || `Failed to ${status === 'draft' ? 'save draft' : 'submit entry'}`,
         "error"
       );
     }
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: Record<string, FormDataValue>) => {
     await submitForm(values, "pending");
   };
 
-  const handleDraft = async (values: any) => {
+  const handleDraft = async (values: Record<string, FormDataValue>) => {
     await submitForm(values, "draft");
   };
 

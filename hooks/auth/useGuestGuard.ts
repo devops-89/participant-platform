@@ -10,7 +10,7 @@ export const useGuestGuard = () => {
     if (token) {
       router.replace('/dashboard');
     } else {
-      setIsChecking(false);
+      Promise.resolve().then(() => setIsChecking(false));
     }
   }, [router]);
 

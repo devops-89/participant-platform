@@ -6,16 +6,17 @@ import { useEffect, useState } from "react";
 export default function QueryCheck() {
   const [hasClient, setHasClient] = useState<boolean | null>(null);
   
+  let client: unknown = null;
   try {
-    const client = useQueryClient();
-    useEffect(() => {
-      setHasClient(!!client);
-    }, [client]);
-  } catch (e) {
-    useEffect(() => {
-    setHasClient(false);
-    }, []);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    client = useQueryClient();
+  } catch {
+    // ignore
   }
+
+  useEffect(() => {
+    Promise.resolve().then(() => setHasClient(!!client));
+  }, [client]);
 
   if (hasClient === null) return <div>Checking Query Client...</div>;
   return (

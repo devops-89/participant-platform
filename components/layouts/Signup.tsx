@@ -49,14 +49,14 @@ import { FilePreview } from "../widgets/FilePreview";
 import { useSnackbar } from "@/context/SnackbarContext";
 
 export default function Signup() {
-  const { colors, mode } = useAppTheme();
+  const { colors} = useAppTheme();
   const router = useRouter();
   const { showSnackbar } = useSnackbar();
 
   const { isChecking } = useGuestGuard();
 
-  const [contests, setContests] = useState<any[]>([]);
-  const [apiCountries, setApiCountries] = useState<any[]>([]);
+  const [contests, setContests] = useState<{ id?: string; name?: string; _id?: string; title?: string }[]>([]);
+  const [apiCountries, setApiCountries] = useState<{ id?: string; name?: string }[]>([]);
   const [templateFields, setTemplateFields] = useState<ContestTemplateField[]>(
     [],
   );
@@ -107,6 +107,7 @@ export default function Signup() {
       }
     };
     fetchInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch contests when a country is selected
@@ -120,6 +121,7 @@ export default function Signup() {
           (c) => c.label.toLowerCase() === selectedCountry.name?.toLowerCase()
         );
         if (matched) {
+          // eslint-disable-next-line
           setSelectedCountryCode(matched.code);
         }
       }
@@ -151,24 +153,25 @@ export default function Signup() {
     } else {
       setContests([]);
     }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCountryId, apiCountries]);
 
   const buildValidationSchema = () => {
-    const shape: any = {
+    const shape: Record<string, import("yup").AnySchema> = {
       contestId: Yup.string().required("Please select a contest"),
       countryId: Yup.string().required("Please select a country"),
     };
 
     templateFields.forEach((field) => {
-      let validator: any = Yup.string();
+      let validator: import("yup").AnySchema = Yup.string();
       
       if (field.type === "telInput") {
         validator = validator.test(
           "isValidTel",
           "Invalid phone number",
-          (value: any) => {
+          (value: unknown) => {
             if (!value) return true;
-            return matchIsValidTel(value);
+            return matchIsValidTel(value as string);
           }
         );
       }
@@ -181,7 +184,7 @@ export default function Signup() {
           validator = validator.test(
             "fileSize",
             `File size is too large (Max: ${field.config.maxSize}MB)`,
-            (value: any) => {
+            (value: unknown) => {
               if (!value) return true;
               if (value instanceof File) return value.size <= maxSize;
               return true;
@@ -190,13 +193,13 @@ export default function Signup() {
         }
 
         if (field.config?.allowedExtensions) {
-          const allowed = typeof field.config.allowedExtensions === 'string' 
+          const allowed = (typeof field.config.allowedExtensions === 'string' 
             ? field.config.allowedExtensions.split(",").map((e: string) => e.trim().toLowerCase()) 
-            : field.config.allowedExtensions;
+            : field.config.allowedExtensions || []) as string[];
           validator = validator.test(
             "fileType",
             `Unsupported file type (Allowed: ${allowed.join(", ")})`,
-            (value: any) => {
+            (value: unknown) => {
               if (!value) return true;
               if (value instanceof File) {
                 const extMatch = value.name.match(/\.[0-9a-z]+$/i);
@@ -212,7 +215,7 @@ export default function Signup() {
       const isPassword = field.type === "password" || field.label.toLowerCase().includes("password");
 
       if (isPassword) {
-        validator = validator
+        validator = (validator as import("yup").StringSchema)
           .min(8, "Password must be at least 8 characters")
           .matches(/[A-Z]/, "Password must include at least one uppercase letter")
           .matches(/[0-9]/, "Password must include at least one number")
@@ -230,7 +233,7 @@ export default function Signup() {
         lowercaseLabel.includes("first name") ||
         lowercaseLabel.includes("last name")
       ) {
-        validator = validator.matches(
+        validator = (validator as import("yup").StringSchema).matches(
           /^[A-Za-z\s]+$/,
           "Only alphabetic characters and spaces are allowed"
         );
@@ -238,7 +241,7 @@ export default function Signup() {
 
       // Innovation title validation
       if (lowercaseLabel === "innovation title") {
-        validator = validator.matches(
+        validator = (validator as import("yup").StringSchema).matches(
           /^[A-Za-z\s]+$/,
           "Only alphabetic characters and spaces are allowed"
         );
@@ -250,7 +253,7 @@ export default function Signup() {
         lowercaseLabel.includes("state") ||
         lowercaseLabel.includes("city")
       ) {
-        validator = validator.matches(
+        validator = (validator as import("yup").StringSchema).matches(
           /^[A-Za-z\s'-]+$/,
           "Only alphabetic characters are allowed"
         );
@@ -263,7 +266,7 @@ export default function Signup() {
         lowercaseLabel.includes("pin code") ||
         lowercaseLabel.includes("pincode")
       ) {
-        validator = validator
+        validator = (validator as import("yup").StringSchema)
           .matches(/^[0-9]+$/, "Only digits are allowed")
           .min(3, "Zip Code is too short")
           .max(10, "Zip Code is too long");
@@ -277,31 +280,31 @@ export default function Signup() {
         lowercaseLabel.includes("dob")
       ) {
         validator = Yup.mixed()
-          .test("isValidDate", "Invalid date format", (value: any) => {
+          .test("isValidDate", "Invalid date format", (value: unknown) => {
             if (!value) return !field.required;
-            return dayjs(value).isValid();
+            return dayjs(value as string | Date).isValid();
           });
 
         // For Date of birth, we usually disable future dates by default.
         if (lowercaseLabel.includes("dob") || lowercaseLabel.includes("date of birth") || lowercaseLabel.includes("birth") || field.config?.disableFuture) {
-          validator = validator.test("noFutureDate", "Date cannot be in the future", (value: any) => {
+          validator = validator.test("noFutureDate", "Date cannot be in the future", (value: unknown) => {
             if (!value) return true;
-            return dayjs(value).isBefore(dayjs().endOf('day'));
+            return dayjs(value as string | Date).isBefore(dayjs().endOf('day'));
           });
         }
 
         if (lowercaseLabel.includes("birth")) {
-           validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: any) => {
+           validator = validator.test('age-range', 'Age must be between 10 and 25 years', (val: unknown) => {
               if (!val) return true;
-              const diff = dayjs().diff(dayjs(val), 'year');
+              const diff = dayjs().diff(dayjs(val as string | Date), 'year');
               return diff >= 10 && diff <= 25;
            });
         }
 
         if (field.config?.disablePast) {
-          validator = validator.test("noPastDate", "Date cannot be in the past", (value: any) => {
+          validator = validator.test("noPastDate", "Date cannot be in the past", (value: unknown) => {
             if (!value) return true;
-            return dayjs(value).isAfter(dayjs().startOf('day'));
+            return dayjs(value as string | Date).isAfter(dayjs().startOf('day'));
           });
         }
       }
@@ -311,13 +314,13 @@ export default function Signup() {
           validator = validator.test(
             "fileRequired",
             `${field.label} is required`,
-            (value: any) => value !== null && value !== undefined && value !== ""
+            (value: unknown) => value !== null && value !== undefined && value !== ""
           );
         } else if (field.type === "datePicker") {
           validator = validator.test(
             "dateRequired",
             `${field.label} is required`,
-            (value: any) => value !== null && value !== undefined && value !== ""
+            (value: unknown) => value !== null && value !== undefined && value !== ""
           );
         } else if (
           field.type === "checkbox" ||
@@ -329,7 +332,7 @@ export default function Signup() {
           validator = validator.test(
             "required-trim",
             `${field.label} is required`,
-            (value: any) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
+            (value: unknown) => value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : value !== false)
           );
         }
       }
@@ -338,7 +341,7 @@ export default function Signup() {
         field.type === "email" ||
         lowercaseLabel.includes("email")
       ) {
-        validator = validator.matches(
+        validator = (validator as import("yup").StringSchema).matches(
           /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
           "Invalid email format"
         );
@@ -350,7 +353,7 @@ export default function Signup() {
   };
 
   const getInitialValues = () => {
-    const values: Record<string, any> = {
+    const values: Record<string, unknown> = {
       contestId: selectedContestId,
       countryId: selectedCountryId,
     };
@@ -397,12 +400,12 @@ export default function Signup() {
         setIsLoading(true);
 
         const hasFiles = Object.values(values).some((v) => v instanceof File);
-        let payload: any;
+        let payload: import("@/types/user").ParticipantSignupPayload | FormData;
 
         if (hasFiles) {
-          payload = new FormData();
-          payload.append("contestId", values.contestId);
-          payload.append("countryId", values.countryId);
+          const formDataPayload = new FormData();
+          formDataPayload.append("contestId", values.contestId as string);
+          formDataPayload.append("countryId", values.countryId as string);
 
           Object.keys(values).forEach((key) => {
             if (
@@ -411,11 +414,12 @@ export default function Signup() {
               values[key] !== undefined &&
               values[key] !== null
             ) {
-              payload.append(`formData[${key}]`, values[key]);
+              formDataPayload.append(`formData[${key}]`, values[key] as string | Blob);
             }
           });
+          payload = formDataPayload;
         } else {
-          const formData: Record<string, any> = {};
+          const formData: import("@/types/user").DynamicFormData = {};
 
           Object.keys(values).forEach((key) => {
             if (
@@ -424,13 +428,13 @@ export default function Signup() {
               values[key] !== undefined &&
               values[key] !== null
             ) {
-              formData[key] = values[key];
+              formData[key] = values[key] as string | number | boolean | string[] | File | null;
             }
           });
 
           payload = {
-            contestId: values.contestId,
-            countryId: values.countryId,
+            contestId: String(values.contestId),
+            countryId: String(values.countryId),
             formData,
           };
         }
@@ -456,10 +460,11 @@ export default function Signup() {
             `/verify-otp?email=${encodeURIComponent(registeredEmail)}`,
           );
         }, 2000);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } }, message?: string };
         setIsLoading(false);
         showSnackbar(
-          err?.response?.data?.message || err?.message || "Signup failed",
+          error?.response?.data?.message || error?.message || "Signup failed",
           "error",
         );
       }
@@ -482,11 +487,11 @@ export default function Signup() {
               field.type === "tel" ||
               field.type === "phone_number"
             ) {
-              const currentValue = formik.values[field.id];
+              const currentValue = String(formik.values[field.id] || "");
               // Only update if it's empty or just a country code (so we don't wipe user typed numbers when they just change country... actually wait, changing country should change the prefix)
               if (!currentValue || /^\+\d{1,4}$/.test(currentValue)) {
                 if (field.config?.defaultCountry) {
-                  const fieldMatched = countries.find((c) => c.code.toUpperCase() === field.config?.defaultCountry?.toUpperCase());
+                  const fieldMatched = countries.find((c) => c.code.toUpperCase() === String(field.config?.defaultCountry || "").toUpperCase());
                   if (fieldMatched) {
                     formik.setFieldValue(field.id, `+${fieldMatched.phone}`);
                   } else {
@@ -501,6 +506,7 @@ export default function Signup() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCountryId, apiCountries, templateFields]);
 
   // Handle contest selection change to fetch dynamic fields
@@ -510,7 +516,7 @@ export default function Signup() {
       const fetchTemplate = async () => {
         setIsLoadingTemplate(true);
         try {
-          const res = await contestControllers.getContestDetails(contestId);
+          const res = await contestControllers.getContestDetails(String(contestId));
           let fields =
             res?.data?.userLevelTemplate?.schema?.fields ||
             res?.userLevelTemplate?.schema?.fields;
@@ -521,7 +527,7 @@ export default function Signup() {
               res?.data?.user_level_template_id || res?.user_level_template_id;
             if (templateId) {
               const templateRes =
-                await FORM_CONTROLLERS.getTemplateById(templateId);
+                await FORM_CONTROLLERS.getTemplateById(String(templateId));
               fields =
                 templateRes?.data?.data?.schema?.fields ||
                 templateRes?.data?.schema?.fields ||
@@ -545,8 +551,10 @@ export default function Signup() {
       };
       fetchTemplate();
     } else {
+      // eslint-disable-next-line
       setTemplateFields([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContestId]);
 
   const togglePasswordVisibility = (id: string) => {
@@ -643,7 +651,7 @@ export default function Signup() {
                         value={formik.values.countryId}
                         onChange={(e) => {
                           formik.handleChange(e);
-                          const newCountryId = e.target.value;
+                          const newCountryId = e.target.value as string;
                           setSelectedCountryId(newCountryId);
 
                           const countryObj = apiCountries.find((c) => c.id === newCountryId);
@@ -723,14 +731,14 @@ export default function Signup() {
                         value={formik.values.contestId}
                         onChange={(e) => {
                           formik.handleChange(e);
-                          setSelectedContestId(e.target.value);
+                          setSelectedContestId(e.target.value as string);
                         }}
                         onBlur={formik.handleBlur}
                         label="Contest"
                         disabled={isLoadingContests}
                         sx={textFieldStyles}
                       >
-                        {contests.map((contest: any) => (
+                        {contests.map((contest: { id?: string; name?: string; _id?: string; title?: string }) => (
                           <MenuItem key={contest.id} value={contest.id}>
                             {contest.name || contest.title}
                           </MenuItem>
@@ -776,10 +784,10 @@ export default function Signup() {
                     >
                       <strong>Contest:</strong>{" "}
                       {contests.find(
-                        (c: any) => c.id === formik.values.contestId,
+                        (c: { id?: string; name?: string; _id?: string; title?: string }) => c.id === formik.values.contestId,
                       )?.name ||
                         contests.find(
-                          (c: any) => c.id === formik.values.contestId,
+                          (c: { id?: string; name?: string; _id?: string; title?: string }) => c.id === formik.values.contestId,
                         )?.title}
                     </Typography>
                     <Button
@@ -848,7 +856,7 @@ export default function Signup() {
                             labelId={`label-${field.id}`}
                             id={field.id}
                             name={field.id}
-                            value={formik.values[field.id] || ""}
+                            value={String(formik.values[field.id] || "")}
                             onChange={formik.handleChange}
                             onBlur={formik.handleBlur}
                             label={field.label}
@@ -881,11 +889,16 @@ export default function Signup() {
                               : (Array.isArray(field.options)
                                   ? field.options
                                   : []
-                                ).map((opt: any, idx: number) => (
-                                  <MenuItem key={idx} value={opt?.value || opt}>
-                                    {opt?.label || opt}
-                                  </MenuItem>
-                                ))}
+                                ).map((opt: Record<string, unknown> | string, idx: number) => {
+                                    const optVal = typeof opt === 'string' ? opt : String(opt?.value || "");
+                                    const optLabel = typeof opt === 'string' ? opt : String(opt?.label || "");
+                                    return (
+                                      <MenuItem key={idx} value={optVal}>
+                                        {optLabel}
+                                      </MenuItem>
+                                    );
+                                  })
+                            }
                           </Select>
                           {getFieldError(field.id) && (
                               <FormHelperText>
@@ -916,8 +929,8 @@ export default function Signup() {
                                 <input
                                   type="file"
                                   hidden
-                                  accept={field.config?.allowedExtensions || undefined}
-                                  onChange={(e: any) => {
+                                  accept={(field.config?.allowedExtensions as string) || undefined}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                     if (e.target.files && e.target.files.length > 0) {
                                       formik.setFieldValue(field.id, e.target.files[0]);
                                     }
@@ -968,23 +981,27 @@ export default function Signup() {
                           >
                             {Array.isArray(field.options) &&
                             field.options.length > 0 ? (
-                              field.options.map((opt: any, idx: number) => (
-                                <FormControlLabel
-                                  key={idx}
-                                  value={String(opt?.value || opt)}
-                                  control={
-                                    <Radio
-                                      sx={{
-                                        color: colors.PRIMARY,
-                                        "&.Mui-checked": {
+                              field.options.map((opt: Record<string, unknown> | string, idx: number) => {
+                                const optVal = typeof opt === 'string' ? opt : String(opt?.value || "");
+                                const optLabel = typeof opt === 'string' ? opt : String(opt?.label || "");
+                                return (
+                                  <FormControlLabel
+                                    key={idx}
+                                    value={optVal}
+                                    control={
+                                      <Radio
+                                        sx={{
                                           color: colors.PRIMARY,
-                                        },
-                                      }}
-                                    />
-                                  }
-                                  label={opt?.label || opt}
-                                />
-                              ))
+                                          "&.Mui-checked": {
+                                            color: colors.PRIMARY,
+                                          },
+                                        }}
+                                      />
+                                    }
+                                    label={optLabel}
+                                  />
+                                );
+                              })
                             ) : (
                               <>
                                 <FormControlLabel
@@ -1037,11 +1054,8 @@ export default function Signup() {
                     return (
                       <Grid size={{ xs: 12, md: 6 }} key={field.id}>
                         {(() => {
-                          const phoneVal = formik.values[field.id] || "";
+                          const phoneVal = String(formik.values[field.id] || "");
                           const parsed = parsePhoneNumberFromString(phoneVal);
-                          const countryCode = parsed?.country || selectedCountryCode || "IN";
-                          const example = getExampleNumber(countryCode as any, examples);
-                          const maxLength = example ? example.formatInternational().length : 15;
 
                           return (
                             <MuiTelInput
@@ -1063,7 +1077,7 @@ export default function Signup() {
                                 }
 
                                 const currentCountry = parsed?.country || selectedCountryCode || "IN";
-                                const ex = getExampleNumber(currentCountry as any, examples);
+                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
                                 if (ex) {
                                   const maxDigits = ex.number.replace(/\D/g, "").length;
                                   const currentDigits = phoneVal.replace(/\D/g, "").length;
@@ -1080,20 +1094,20 @@ export default function Signup() {
                               label={field.label}
                               required={field.required}
                               defaultCountry={(() => {
-                                let dc = (field.config?.defaultCountry || selectedCountryCode) as any;
-                                const oc = field.config?.onlyCountries;
-                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as any;
+                                const dc = (field.config?.defaultCountry || selectedCountryCode) as import("libphonenumber-js").CountryCode;
+                                const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];
+                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0];
                                 return dc;
                               })()}
                               onlyCountries={(() => {
-                                const oc = field.config?.onlyCountries;
-                                const dc = field.config?.defaultCountry || selectedCountryCode;
+                                const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];
+                                const dc = (field.config?.defaultCountry || selectedCountryCode) as import("libphonenumber-js").CountryCode;
                                 if (oc && oc.length > 0) {
                                   return Array.from(new Set([...oc, dc]));
                                 }
                                 return undefined;
                               })()}
-                              value={formik.values[field.id] || ""}
+                              value={String(formik.values[field.id] || "")}
                               sx={{
                                 ...textFieldStyles,
                                  "& .MuiTelInput-Flag": {
@@ -1111,8 +1125,8 @@ export default function Signup() {
                                      backgroundImage: `url(https://flagcdn.com/w20/${(() => {
                                         let dc = formik.values[`${field.id}_country`];
                                         if (!dc) {
-                                          dc = (field.config?.defaultCountry || selectedCountryCode) as any;
-                                          const phoneVal = formik.values[field.id] || "";
+                                          dc = (field.config?.defaultCountry || selectedCountryCode) as import("libphonenumber-js").CountryCode;
+                                          const phoneVal = String(formik.values[field.id] || "");
                                           const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
                                           if (callingCodeMatch) {
                                             const cc = callingCodeMatch[1];
@@ -1136,9 +1150,9 @@ export default function Signup() {
                               }}
                               onChange={(value, info) => {
                                 const currentCountry = info.countryCode || parsed?.country || selectedCountryCode || "IN";
-                                const ex = getExampleNumber(currentCountry as any, examples);
+                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
                                 
-                                const phoneVal = formik.values[field.id] || "";
+                                const phoneVal = String(formik.values[field.id] || "");
                                 const oldParsed = parsePhoneNumberFromString(phoneVal);
                                 
                                 if (oldParsed?.isValid() && value.length > phoneVal.length) {
@@ -1253,15 +1267,13 @@ export default function Signup() {
                             id={field.id}
                             name={field.id}
                             value={
-                              Number(formik.values[field.id]) ||
-                              field.config?.min ||
-                              0
+                              Number(formik.values[field.id]) || Number(field.config?.min || 0)
                             }
                             onChange={(e, newValue) =>
                               formik.setFieldValue(field.id, newValue)
                             }
-                            min={field.config?.min || 0}
-                            max={field.config?.max || 100}
+                            min={Number(field.config?.min || 0)}
+                            max={Number(field.config?.max || 100)}
                             valueLabelDisplay="auto"
                             sx={{
                               color: colors.PRIMARY,
@@ -1299,7 +1311,7 @@ export default function Signup() {
                             onChange={(e, newValue) =>
                               formik.setFieldValue(field.id, newValue)
                             }
-                            max={field.config?.max || 5}
+                            max={Number(field.config?.max || 5)}
                             sx={{ color: colors.PRIMARY }}
                           />
                           {getFieldError(field.id) && (
@@ -1320,7 +1332,7 @@ export default function Signup() {
                           options={
                             Array.isArray(field.options) ? field.options : []
                           }
-                          value={formik.values[field.id] || null}
+                          value={(formik.values[field.id] as string | null) || null}
                           onChange={(e, newValue) =>
                             formik.setFieldValue(field.id, newValue)
                           }
@@ -1352,18 +1364,18 @@ export default function Signup() {
                                 label={field.label}
                                 value={
                                   formik.values[field.id]
-                                    ? dayjs(formik.values[field.id])
+                                    ? dayjs(formik.values[field.id] as string)
                                     : null
                                 }
-                                onChange={(newValue: any) => {
+                                onChange={(newValue) => {
                                   if (newValue && typeof newValue.isValid === "function" && newValue.isValid()) {
                                     formik.setFieldValue(field.id, newValue.toISOString());
                                   } else {
                                     formik.setFieldValue(field.id, "");
                                   }
                                 }}
-                                disablePast={isBirthDate ? false : field.config?.disablePast}
-                                disableFuture={isBirthDate ? true : field.config?.disableFuture}
+                                disablePast={isBirthDate ? false : Boolean(field.config?.disablePast)}
+                                disableFuture={isBirthDate ? true : Boolean(field.config?.disableFuture)}
                                 minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
                                 maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
                                 slotProps={{
@@ -1397,7 +1409,7 @@ export default function Signup() {
                           type="number"
                           variant="outlined"
                           sx={textFieldStyles}
-                          value={formik.values[field.id] || ""}
+                          value={String(formik.values[field.id] || "")}
                           onChange={formik.handleChange}
                           onBlur={formik.handleBlur}
                           error={
@@ -1433,7 +1445,7 @@ export default function Signup() {
                         variant="outlined"
                         autoComplete={isPassword ? "new-password" : "off"}
                         sx={textFieldStyles}
-                        value={formik.values[field.id] || ""}
+                        value={String(formik.values[field.id] || "")}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
                         error={Boolean(getFieldError(field.id))}

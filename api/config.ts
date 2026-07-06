@@ -6,16 +6,19 @@ const authSecuredApi = axios.create({
 });
 
 authSecuredApi.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    let token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  (config: InternalAxiosRequestConfig) => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
+
     if (token && config.headers) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 const authPublicApi = axios.create({
@@ -31,16 +34,19 @@ const userPublicApi = axios.create({
 });
 
 userSecuredApi.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    let token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  (config: InternalAxiosRequestConfig) => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
+
     if (token && config.headers) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 const contestSecuredApi = axios.create({
@@ -48,16 +54,19 @@ const contestSecuredApi = axios.create({
 });
 
 contestSecuredApi.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    let token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  (config: InternalAxiosRequestConfig) => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
+
     if (token && config.headers) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 const entrySecuredApi = axios.create({
@@ -65,16 +74,19 @@ const entrySecuredApi = axios.create({
 });
 
 entrySecuredApi.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    let token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  (config: InternalAxiosRequestConfig) => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
+
     if (token && config.headers) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 const formSecuredApi = axios.create({
@@ -82,19 +94,24 @@ const formSecuredApi = axios.create({
 });
 
 formSecuredApi.interceptors.request.use(
-  (config: InternalAxiosRequestConfig<any>) => {
-    let token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  (config: InternalAxiosRequestConfig) => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
+
     if (token && config.headers) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 export {
-  authPublicApi, authSecuredApi, contestSecuredApi,
-  entrySecuredApi, userSecuredApi, userPublicApi, formSecuredApi
+  authPublicApi,
+  authSecuredApi,
+  contestSecuredApi,
+  entrySecuredApi, formSecuredApi, userPublicApi, userSecuredApi
 };

@@ -1,11 +1,11 @@
 "use client";
-import { useAppTheme } from "@/context/ThemeContext";
-import { CheckCircleOutlined, EmojiEvents, UploadFile } from "@mui/icons-material";
-import { Box, Grid, Paper, Typography, CircularProgress } from "@mui/material";
-import Breadcrumb from "@/components/widgets/Breadcrumb";
-import { useEffect, useState } from "react";
 import { contestControllers } from "@/api/contestControllers";
 import { entryControllers } from "@/api/entryControllers";
+import Breadcrumb from "@/components/widgets/Breadcrumb";
+import { useAppTheme } from "@/context/ThemeContext";
+import { CheckCircleOutlined, EmojiEvents, UploadFile } from "@mui/icons-material";
+import { Box, Grid, Paper, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
 
 const Dashboard = () => {
   const { colors } = useAppTheme();
@@ -52,7 +52,7 @@ const Dashboard = () => {
               actualContestId = user.contestId;
             }
           }
-        } catch(e) {}
+        } catch {}
 
         if (!hasLocalContestData) {
           try {
@@ -69,7 +69,7 @@ const Dashboard = () => {
             } else if (contestRes?.id) {
               actualContestId = contestRes.id;
             }
-          } catch(e) {}
+          } catch {}
         }
 
         if (actualContestId) {

@@ -1,6 +1,57 @@
 import { UserRole, UserStatus } from "@/utils/enum";
 import { TextFieldVariants } from "@mui/material";
 
+export interface FormIdentity {
+  name: string;
+  timestamp: string;
+  title: string;
+}
+
+export interface CountryType {
+  code: string;
+  label: string;
+  phone: string;
+  suggested?: boolean;
+}
+
+export interface FieldConfig {
+  [key: string]: unknown;
+}
+
+export interface SubmissionData {
+  [key: string]: string;
+}
+
+export interface DynamicFormData {
+  [key: string]: string | number | boolean | null | string[] | File;
+}
+
+export interface ContestTemplateField {
+  id: string;
+  config?: FieldConfig;
+  label: string;
+  required: boolean;
+  type: string;
+  variant: TextFieldVariants;
+  options?: string[] | readonly CountryType[];
+  placeholder?: string;
+  helperText?: string;
+  defaultCountry?: string;
+}
+
+export interface ContestTemplateSchema {
+  fields: ContestTemplateField[];
+  form_identity: FormIdentity;
+}
+
+export interface ContestTemplate {
+  id: string;
+  createdAt: string;
+  isActive: boolean;
+  name: string;
+  schema: ContestTemplateSchema;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -36,19 +87,12 @@ export interface RegisterParticipantPayload {
 export interface ParticipantSignupPayload {
   contestId: string;
   countryId: string;
-  formData: Record<string, any>;
+  formData: DynamicFormData;
 }
 
 export interface LOGINRESPONSE {
   email: string;
   password: string;
-}
-
-export interface CountryType {
-  code: string;
-  label: string;
-  phone: string;
-  suggested?: boolean;
 }
 
 export interface TABLE_HEADER_DATA_PROPS {
@@ -65,7 +109,7 @@ export interface AddContestPayload {
   entry_level_template_id: string;
 }
 
-export interface ContestParticipant {
+ export interface ContestParticipant {
   id: string;
   contest_id: string;
   submission_id: string;
@@ -73,8 +117,14 @@ export interface ContestParticipant {
   joined_at: string;
   submission: {
     id: string;
-    data: Record<string, string>;
+    data: SubmissionData;
     createdAt: string;
+  };
+  entries?: unknown[];
+  contest?: {
+    id?: string;
+    _id?: string;
+    status?: string;
   };
 }
 
@@ -90,42 +140,16 @@ export interface ContestEntry {
   participant?: ContestParticipant;
   submission?: {
     id: string;
-    data: Record<string, string>;
+    data: SubmissionData;
     createdAt: string;
   };
-}
-
-export interface ContestTemplateField {
-  id: string;
-  config?: any;
-  label: string;
-  required: boolean;
-  type: string;
-  variant: TextFieldVariants;
-  options?: string[] | readonly CountryType[];
-  placeholder?: string;
-  helperText?: string;
-  defaultCountry?: string;
 }
 
 export interface CONTESTDETAILS {
   available_regions: string;
   description: string;
   end_date: string;
-  entry_level_template: {
-    id: string;
-    createdAt: string;
-    isActive: boolean;
-    name: string;
-    schema: {
-      fields: ContestTemplateField[];
-      form_identity: {
-        name: string;
-        timestamp: string;
-        title: string;
-      };
-    };
-  };
+  entry_level_template: ContestTemplate;
   entry_level_template_id: string;
   id: string;
   name: string;
@@ -134,20 +158,7 @@ export interface CONTESTDETAILS {
   status: UserStatus;
   total_entries: number;
   total_votes: number;
-  userLevelTemplate: {
-    id: string;
-    createdAt: string;
-    isActive: boolean;
-    name: string;
-    schema: {
-      fields: ContestTemplateField[];
-      form_identity: {
-        name: string;
-        timestamp: string;
-        title: string;
-      };
-    };
-  };
+  userLevelTemplate: ContestTemplate;
   user_level_template_id: string;
   participants: ContestParticipant[];
   entries?: ContestEntry[];
@@ -167,7 +178,7 @@ export interface USER_DATA {
   email: string;
   firstName: string;
   lastName: string;
-  fullName:string;
+  fullName: string;
   id: string;
   participantProfile: {
     country: string;
@@ -222,4 +233,73 @@ export interface VotingPeriodPayload {
   max_score?: number;
   criteria?: VotingPeriodCriterion[];
   judge_ids?: string[];
+}
+
+export interface EntrySubmissionPayload {
+  [key: string]:
+    | string
+    | number
+    | boolean
+    | null
+    | File
+    | File[]
+    | string[]
+    | number[];
+}
+
+export interface EntryField {
+  id: string;
+  label: string;
+  value?: string | number | boolean | null;
+  type: string;
+}
+
+export interface EntryGroup {
+  title?: string;
+  fields: EntryField[];
+}
+
+export interface ColorPalette {
+  PRIMARY: string;
+  TEXT_PRIMARY: string;
+  TEXT_SECONDARY: string;
+  BORDER: string;
+  SURFACE: string;
+}
+
+export interface TemplateField {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+}
+
+export interface FormValues {
+  [key: string]: string | Blob;
+}
+
+
+export interface UserData {
+  status?: string;
+  contestId?: string;
+  contests?: {
+    id: string;
+    entryLevelTemplate?: {
+      schema?: {
+        fields: TemplateField[];
+      };
+    };
+  }[];
+  participants?: ContestParticipant[];
+}
+
+export interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
 }

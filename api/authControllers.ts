@@ -1,91 +1,117 @@
-import { authPublicApi, authSecuredApi, userPublicApi, userSecuredApi } from "./config";
+import {
+  FORGOTPASSWORDPAYLOAD,
+  LOGINRESPONSE,
+  LOGOUTPAYLOAD,
+  REGISTERPAYLOAD,
+  RESETPASSWORDPAYLOAD,
+  RegisterParticipantPayload,
+  ParticipantSignupPayload,
+} from "@/types/user";
+
+import {
+  authPublicApi,
+  authSecuredApi,
+  userPublicApi,
+  userSecuredApi,
+} from "./config";
+
+interface VerifyOtpPayload {
+  email?: string;
+  otp: string;
+}
 
 export const AuthControllers = {
-  registerParticipants: async (data: Record<string, unknown>) => {
+  registerParticipants: async (data: RegisterParticipantPayload | ParticipantSignupPayload | FormData) => {
     try {
-      let result = await userPublicApi.post("create-participant", data);
-      return result;
+      return await userPublicApi.post("create-participant", data);
     } catch (error) {
       throw error;
     }
   },
-  login: async (payload: Record<string, unknown>) => {
+
+  login: async (payload: LOGINRESPONSE) => {
     try {
-      let result = await authPublicApi.post("login", payload);
-      return result;
+      return await authPublicApi.post("login", payload);
     } catch (error) {
       throw error;
     }
   },
-  logout: async (payload: Record<string, unknown> = {}) => {
+
+  logout: async (payload?: LOGOUTPAYLOAD) => {
     try {
-      // Assuming authSecuredApi is what we should use. 
-      // If it's not exported from config, we will check next.
-      let result = await authSecuredApi.post("logout", payload);
-      return result;
+      return await authSecuredApi.post("logout", payload ?? {});
     } catch (error) {
       throw error;
     }
   },
+
   getCountries: async () => {
     try {
-      let result = await userPublicApi.get("countries");
+      const result = await userPublicApi.get("countries");
       return result.data;
     } catch (error) {
       throw error;
     }
   },
-  verifyOtp: async (payload: { email?: string; otp: string; [key: string]: unknown }) => {
+
+  verifyOtp: async (payload: VerifyOtpPayload) => {
     try {
-      let result = await userPublicApi.post("verify-otp", payload);
-      return result;
+      return await userPublicApi.post("verify-otp", payload);
     } catch (error) {
       throw error;
     }
   },
-  resendOtp: async (payload: Record<string, unknown>) => {
+
+  resendOtp: async (payload: FORGOTPASSWORDPAYLOAD) => {
     try {
-      let result = await authPublicApi.post("resend-otp", payload);
-      return result;
+      return await authPublicApi.post("resend-otp", payload);
     } catch (error) {
       throw error;
     }
   },
+
   getParticipants: async () => {
     try {
-      let result = await userSecuredApi.get("me");
+      const result = await userSecuredApi.get("me");
       return result.data;
     } catch (error) {
       throw error;
     }
   },
-  forgotPassword: async (payload: { email: string }) => {
+
+  forgotPassword: async (payload: FORGOTPASSWORDPAYLOAD) => {
     try {
-      let result = await authPublicApi.post("forgot-password", payload);
-      return result;
+      return await authPublicApi.post("forgot-password", payload);
     } catch (error) {
       throw error;
     }
   },
-  resetPassword: async (payload: Record<string, unknown>) => {
+
+  resetPassword: async (payload: RESETPASSWORDPAYLOAD) => {
     try {
-      let result = await authPublicApi.post("reset-password", payload);
-      return result;
+      return await authPublicApi.post("reset-password", payload);
     } catch (error) {
       throw error;
     }
   },
-  updateUserDetails: async (id: string, payload: Record<string, unknown> | FormData) => {
+
+  updateUserDetails: async (
+    id: string,
+    payload: REGISTERPAYLOAD | FormData
+  ) => {
     try {
-      let result = await userSecuredApi.put(`/${id}`, payload, {
+      const result = await userSecuredApi.put(`/${id}`, payload, {
         headers: {
-          "Content-Type": payload instanceof FormData ? "multipart/form-data" : "application/json",
-        }
+          "Content-Type":
+            payload instanceof FormData
+              ? "multipart/form-data"
+              : "application/json",
+        },
       });
+
       return result.data;
     } catch (error) {
       throw error;
     }
   },
 };
-

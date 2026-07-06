@@ -1,15 +1,12 @@
 "use client";
+import { Dashboard, EmojiEvents, UploadFile, } from "@mui/icons-material";
 import {
   Box,
-  Collapse,
   List,
-  ListItemAvatar,
   ListItemButton,
   ListItemText,
   Typography,
 } from "@mui/material";
-import { Dashboard, Person, EmojiEvents, UploadFile, EmojiEventsOutlined, Notifications } from "@mui/icons-material";
-import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const PARTICIPANT_SIDEBAR = [

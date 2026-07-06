@@ -11,33 +11,36 @@ import {
   CheckCircle,
   Download,
   EmojiEvents,
+  Image as ImageIcon,
   Info,
   InsertDriveFile,
   Mail,
   Phone,
   Star,
   Tune,
-  PlayArrow,
-  Videocam,
-  Image as ImageIcon
+  Videocam
 } from "@mui/icons-material";
-import { Avatar, Box, Button, Card, Chip, CircularProgress, Grid, Paper, Rating, Typography } from "@mui/material";
+import { Box, Button, Chip, CircularProgress, Rating, Typography } from "@mui/material";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import EntryDetailsSection from "@/components/layouts/entry-details/EntryDetailsSection";
 import EntryHeroSection from "@/components/layouts/entry-details/EntryHeroSection";
 import InnovationVideoPlayer, { VideoPlayerRenderer } from "@/components/layouts/entry-details/InnovationVideoPlayer";
 import TeamMembersSection from "@/components/layouts/entry-details/TeamMembersSection";
 
+interface TemplateField { id: string; label?: string; type?: string; [key: string]: unknown; }
+interface Contest { id?: string; _id?: string; name?: string; title?: string; status?: string; entryLevelTemplate?: { schema?: { fields?: TemplateField[] } }; entry_level_template?: { schema?: { fields?: TemplateField[] } }; [key: string]: unknown; }
+interface Entry { id?: string; submission_id?: string; status?: string; score?: number; contest_id?: string; contest?: Contest; participant?: { status?: string; submission?: { data?: Record<string, string> }; [key: string]: unknown; }; submission?: { id?: string; data?: Record<string, string> }; [key: string]: unknown; }
+
 const EntryDetails = ({ entryId }: { entryId: string }) => {
   const { colors } = useAppTheme();
   const { showSnackbar } = useSnackbar();
   const router = useRouter();
   
-  const [entry, setEntry] = useState<any>(null);
-  const [templateFields, setTemplateFields] = useState<any[]>([]);
+  const [entry, setEntry] = useState<Entry | null>(null);
+  const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
       try {
         setLoading(true);
         let actualContestId = null;
-        let templateFieldsFromApi: any[] = [];
+        let templateFieldsFromApi: TemplateField[] = [];
         let hasLocalContestData = false;
         try {
           const userStr = localStorage.getItem("user");
@@ -54,7 +57,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
             if (user?.participants && Array.isArray(user.participants)) {
               for (const p of user.participants) {
                 if (p.entries && Array.isArray(p.entries)) {
-                  const foundEntry = p.entries.find((e: any) => e.id === entryId || e.submission?.id === entryId || e.submission_id === entryId);
+                  const foundEntry = p.entries.find((e: Entry) => e.id === entryId || e.submission?.id === entryId || e.submission_id === entryId);
                   if (foundEntry) {
                     actualContestId = p.contest_id || p.contest?.id;
                     hasLocalContestData = true;
@@ -81,7 +84,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
               actualContestId = user.contestId;
             }
           }
-        } catch(e) {}
+        } catch {}
 
         if (!hasLocalContestData && !actualContestId) {
           const contestRes = await contestControllers.getContest();
@@ -122,10 +125,10 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
           entryRes = await entryControllers.getEntryById(actualContestId, entryId);
         }
 
-        const fetchedEntry = entryRes?.data || entryRes;
+        const fetchedEntry = (entryRes?.data || entryRes) as Entry;
         
-        let templateFieldsToUse: any[] = templateFieldsFromApi;
-        if (templateFieldsToUse.length === 0) {
+        let templateFieldsToUse: TemplateField[] = templateFieldsFromApi;
+        if (fetchedEntry) {
           if (fetchedEntry?.contest?.entryLevelTemplate?.schema?.fields) {
             templateFieldsToUse = fetchedEntry.contest.entryLevelTemplate.schema.fields;
           } else if (fetchedEntry?.contest?.entry_level_template?.schema?.fields) {
@@ -135,9 +138,10 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
 
         setTemplateFields(templateFieldsToUse);
         setEntry(fetchedEntry);
-      } catch (error: any) {
-        console.error("Failed to fetch entry details:", error);
-        showSnackbar(error?.response?.data?.message || "Failed to load entry details.", "error");
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } } };
+        console.error("Failed to fetch entry:", err);
+        showSnackbar(err?.response?.data?.message || "Failed to load entry.", "error");
       } finally {
         setLoading(false);
       }
@@ -173,7 +177,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
     return <Info sx={{ fontSize: 20 }} />;
   };
 
-  const renderFieldValue = (field: any) => {
+  const renderFieldValue = (field: { type?: string; value?: unknown }) => {
     const { type, value } = field;
 
     if (value === undefined || value === null || value === "") {
@@ -189,7 +193,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
         <Box sx={{ display: "flex", alignItems: "center", mt: 0.5 }}>
           <Rating value={Number(value)} readOnly precision={0.5} size="small" />
           <Typography variant="caption" sx={{ ml: 1, fontWeight: 600, color: colors.TEXT_SECONDARY }}>
-            ({value})
+            ({String(value)})
           </Typography>
         </Box>
       );
@@ -217,17 +221,17 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
       try {
         return (
           <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY, mt: 0.5 }}>
-            {new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+            {new Date(value as string | number).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
           </Typography>
         );
-      } catch (e) {
+      } catch {
         return <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY, mt: 0.5 }}>{String(value)}</Typography>;
       }
     }
 
     if (type === "file_upload" || type === "file" || type === "image") {
       if (!value) return null;
-      const urlStr = typeof value === 'string' ? value : (value.downloadUrl || String(value));
+      const urlStr = typeof value === 'string' ? value : ((value as { downloadUrl?: string }).downloadUrl || String(value));
       const urlWithoutQuery = urlStr.split('?')[0];
       const extension = urlWithoutQuery.split('.').pop()?.toLowerCase();
       const isImage = typeof urlStr === 'string' && urlStr.match(/\.(jpeg|jpg|gif|png|webp)(\?|$)/i);
@@ -317,27 +321,27 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
     if (!entry?.submission?.data) return [];
 
     const submissionData = entry.submission.data;
-    const groups: { title: string; fields: { id: string; label: string; value: any; type: string }[] }[] = [];
+    const groups: { title: string; fields: { id: string; label: string; value: string | number | boolean | null | undefined; type: string }[] }[] = [];
 
-    let currentGroup = { title: "Information", fields: [] as { id: string; label: string; value: any; type: string }[] };
+    let currentGroup = { title: "Information", fields: [] as { id: string; label: string; value: string | number | boolean | null | undefined; type: string }[] };
     const mappedFieldIds = new Set<string>();
 
-    templateFields?.forEach((field: any) => {
+    templateFields?.forEach((field) => {
       if (field.type === "step_break") {
         if (currentGroup.fields.length > 0 || currentGroup.title !== "Information") {
           groups.push(currentGroup);
         }
-        currentGroup = { title: field.label, fields: [] };
+        currentGroup = { title: field.label || "", fields: [] };
       } else {
         if (field.type === "textblock" || field.type === "checkbox") return;
         const labelTrimmed = field.label?.trim() || "";
-        const downloadUrl = submissionData[`${labelTrimmed}_downloadUrl`] || submissionData[`${field.label}_downloadUrl`] || submissionData[`${field.id}_downloadUrl`];
-        const value = downloadUrl || submissionData[labelTrimmed] || submissionData[field.label] || submissionData[field.id];
+        const downloadUrl = submissionData[`${labelTrimmed}_downloadUrl`] || submissionData[`${field.label || ""}_downloadUrl`] || submissionData[`${field.id || ""}_downloadUrl`];
+        const value = downloadUrl || submissionData[labelTrimmed] || submissionData[field.label || ""] || submissionData[field.id || ""];
         currentGroup.fields.push({
-          id: field.id,
-          label: field.label,
-          value: value !== undefined ? value : "",
-          type: field.type,
+          id: field.id || "",
+          label: field.label || "",
+          value: value as string | number | boolean | null | undefined,
+          type: field.type || "",
         });
         mappedFieldIds.add(field.id);
       }
@@ -348,10 +352,12 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
     }
 
     const mappedFieldKeys = new Set<string>();
-    templateFields?.forEach((f: any) => {
-      mappedFieldKeys.add(f.id);
-      mappedFieldKeys.add(f.label);
-      if (f.label) mappedFieldKeys.add(f.label.trim());
+    templateFields?.forEach((f) => {
+      if (f.id) mappedFieldKeys.add(f.id);
+      if (f.label) {
+        mappedFieldKeys.add(f.label);
+        mappedFieldKeys.add(f.label.trim());
+      }
     });
 
 
@@ -457,8 +463,8 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
               videoId = (match && match[2].length === 11) ? match[2] : null;
             }
 
-            const otherGroups = groupedFields.filter((g: any) => g.title !== "Information" && !g.title?.toLowerCase().includes("member"));
-            const memberGroups = groupedFields.filter((g: any) => g.title?.toLowerCase().includes("member"));
+            const otherGroups = groupedFields.filter((g) => g.title !== "Information" && !g.title?.toLowerCase().includes("member"));
+            const memberGroups = groupedFields.filter((g) => g.title?.toLowerCase().includes("member"));
             const participantEmail = Object.values(entry?.participant?.submission?.data || {}).find(v => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) as string | undefined;
 
             return (

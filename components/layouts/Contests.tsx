@@ -1,48 +1,61 @@
 "use client";
-import { useAppTheme } from "@/context/ThemeContext";
-import { Box, Card, CardContent, Chip, Grid, Typography, CircularProgress, Stack, Button } from "@mui/material";
-import { CalendarToday, Public, EmojiEvents } from "@mui/icons-material";
-import Breadcrumb from "@/components/widgets/Breadcrumb";
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { contestControllers } from "@/api/contestControllers";
-import dayjs from "dayjs";
-import { montserrat } from "@/utils/fonts";
 import { AuthControllers } from "@/api/authControllers";
+import Breadcrumb from "@/components/widgets/Breadcrumb";
+import { useAppTheme } from "@/context/ThemeContext";
+import { montserrat } from "@/utils/fonts";
+import { CalendarToday, EmojiEvents, Public } from "@mui/icons-material";
+import { Box, Button, Card, CardContent, Chip, CircularProgress, Grid, Stack, Typography } from "@mui/material";
+import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+type ContestType = {
+  id: string;
+  name?: string;
+  description?: string;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+  available_regions?: string[];
+  [key: string]: unknown;
+};
 
 const Contests = () => {
   const { colors } = useAppTheme();
   const router = useRouter();
-  const [contests, setContests] = useState<any[]>([]);
+  const [contests, setContests] = useState<ContestType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ status?: string; participants?: Array<{ contest?: ContestType; contest_id?: string; status?: string }> } | null>(null);
 
   useEffect(() => {
     try {
       const userStr = localStorage.getItem("user");
       if (userStr) {
-        const parsedUser = JSON.parse(userStr);
-        setUser(parsedUser);
-        if (parsedUser?.participants && Array.isArray(parsedUser.participants)) {
-          const userContests = parsedUser.participants
-            .map((p: any) => p.contest)
-            .filter((c: any) => c && c.status === "Published");
-          setContests(userContests);
-        }
+        const parsedUser = JSON.parse(userStr) as { participants?: { contest?: ContestType }[] };
+        Promise.resolve().then(() => {
+          setUser(parsedUser);
+          if (parsedUser?.participants && Array.isArray(parsedUser.participants)) {
+            const userContests = parsedUser.participants
+              .map((p: { contest?: ContestType }) => p.contest)
+              .filter((c): c is ContestType => !!c && c.status === "Published");
+            setContests(userContests);
+          }
+        });
       }
-    } catch(e) {}
+    } catch {}
     
     const fetchMe = async () => {
       try {
         setLoading(true);
         const res = await AuthControllers.getParticipants();
         if (res?.data) {
-          setUser(res.data);
-          localStorage.setItem("user", JSON.stringify(res.data));
-          if (res.data.participants && Array.isArray(res.data.participants)) {
-             const userContests = res.data.participants
-               .map((p: any) => p.contest)
-               .filter((c: any) => c && c.status === "Published");
+          setUser((res.data as Record<string, unknown>));
+          localStorage.setItem("user", JSON.stringify((res.data as Record<string, unknown>)));
+          const participants = (res.data as { participants?: Array<{ contest?: ContestType }> }).participants;
+          if (participants && Array.isArray(participants)) {
+             const userContests = participants
+               .map((p: { contest?: ContestType }) => p.contest)
+               .filter((c): c is ContestType => !!c && c.status === "Published");
              setContests(userContests);
           }
         }
@@ -57,9 +70,9 @@ const Contests = () => {
 
   const isBanned = (contestId: string) => {
     if (!user) return false;
-    if (user.status === "Banned" || user.status === "banned") return true;
-    if (user.participants && Array.isArray(user.participants)) {
-      const c = user.participants.find((x: any) => x.contest?.id === contestId || x.contest_id === contestId);
+    if (user?.status === "Banned" || user?.status === "banned") return true;
+    if (user?.participants && Array.isArray(user?.participants)) {
+      const c = user?.participants?.find((x: { contest?: { id?: string; _id?: string; status?: string }; contest_id?: string; status?: string }) => x.contest?.id === contestId || x.contest_id === contestId);
       if (c && (c.status === "Banned" || c.status === "banned")) return true;
     }
     return false;

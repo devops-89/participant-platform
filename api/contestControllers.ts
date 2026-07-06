@@ -31,7 +31,7 @@ export const contestControllers = {
       throw error;
     }
   },
-  updateParticipant: async (contestId: string, participantId: string, payload: any) => {
+  updateParticipant: async (contestId: string, participantId: string, payload: unknown) => {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
       const response = await contestSecuredApi.patch(`/${contestId}/participants/${participantId}`, payload, {

@@ -2,8 +2,8 @@
 
 import { useAppTheme } from "@/context/ThemeContext";
 import { useForgotPassword } from "@/hooks/auth/useForgotPassword";
-import { ForgotPassword_Validation } from "@/utils/validation";
 import { useGuestGuard } from "@/hooks/auth/useGuestGuard";
+import { ForgotPassword_Validation } from "@/utils/validation";
 import {
   Box,
   Button,
@@ -13,10 +13,15 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { AxiosError } from "axios";
 import { useFormik } from "formik";
 import React from "react";
 
 import { useSnackbar } from "@/context/SnackbarContext";
+
+interface ErrorResponse {
+  message: string;
+}
 
 const ForgotPassword = () => {
   const { colors } = useAppTheme();
@@ -33,8 +38,14 @@ const ForgotPassword = () => {
     onSubmit: async (values) => {
       try {
         await forgotPassword(values);
-      } catch (err: any) {
-        showSnackbar(err?.response?.data?.message || err.message || "An error occurred", "error");
+      } catch (err) {
+        const error = err as AxiosError<ErrorResponse>;
+        showSnackbar(
+          error.response?.data?.message ??
+            error.message ??
+            "An error occurred",
+          "error"
+        );
       }
     },
   });
@@ -98,12 +109,22 @@ const ForgotPassword = () => {
               >
                 Forgot Password
               </Typography>
-              <Typography variant="body1" sx={{ color: colors.TEXT_SECONDARY }}>
+
+              <Typography
+                variant="body1"
+                sx={{ color: colors.TEXT_SECONDARY }}
+              >
                 Enter your email address to receive an OTP.
               </Typography>
             </Box>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+              }}
+            >
               <TextField
                 margin="normal"
                 fullWidth
@@ -115,8 +136,13 @@ const ForgotPassword = () => {
                 value={formik.values.email}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                error={formik.touched.email && Boolean(formik.errors.email)}
-                helperText={formik.touched.email && formik.errors.email}
+                error={
+                  formik.touched.email &&
+                  Boolean(formik.errors.email)
+                }
+                helperText={
+                  formik.touched.email && formik.errors.email
+                }
               />
 
               <Button
@@ -159,7 +185,9 @@ const ForgotPassword = () => {
                     color: colors.PRIMARY,
                     textDecoration: "none",
                     fontWeight: 600,
-                    "&:hover": { textDecoration: "underline" },
+                    "&:hover": {
+                      textDecoration: "underline",
+                    },
                   }}
                 >
                   Back to Login

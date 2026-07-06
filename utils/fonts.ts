@@ -2,7 +2,6 @@ import {
   Montserrat,
   Poppins,
   Roboto_Slab,
-  Science_Gothic,
 } from "next/font/google";
 
 export const science_gothic = Poppins({

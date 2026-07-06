@@ -2,7 +2,6 @@
 import { roboto } from "@/utils/fonts";
 import { Box, Breadcrumbs, Typography } from "@mui/material";
 import Link from "next/link";
-import React from "react";
 
 interface BREADCRUMBS_PROPS {
   title: string;
@@ -33,7 +32,7 @@ const Breadcrumb = ({ title, data }: BREADCRUMBS_PROPS) => {
             href={item.href}
             style={{ textDecoration: "none" }}
             key={item.title}
-            onClick={(e) => {
+            onClick={() => {
               if (item.onClick) {
                 item.onClick();
               }

@@ -1,9 +1,28 @@
 import { EmojiEvents, HowToVote, Info, Group, Person } from '@mui/icons-material';
 import { Box, Card, Chip, Typography, Tooltip } from '@mui/material';
+import Image from 'next/image';
 
 interface EntryHeroSectionProps {
-  entry: any;
-  colors: any;
+  entry: {
+    submission?: { data?: Record<string, string> };
+    contest?: {
+      entryLevelTemplate?: { schema?: { fields?: { label?: string; id?: string }[] } };
+      entry_level_template?: { schema?: { fields?: { label?: string; id?: string }[] } };
+      userLevelTemplate?: { schema?: { fields?: { label?: string; id?: string }[] } };
+      user_level_template?: { schema?: { fields?: { label?: string; id?: string }[] } };
+    };
+    participant?: {
+      submission?: { data?: Record<string, string> | { data?: Record<string, string> } };
+      participant_profile_data?: Record<string, string>;
+      data?: Record<string, string>;
+    };
+    id?: string;
+    created_at?: string;
+    status?: string;
+    rejectReason?: string;
+    [key: string]: unknown;
+  };
+  colors: Record<string, string>;
   showStatus?: boolean;
 }
 
@@ -62,10 +81,10 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
         {(() => {
           const submissionData = entry?.submission?.data || {};
           const entryFields = entry?.contest?.entryLevelTemplate?.schema?.fields || entry?.contest?.entry_level_template?.schema?.fields || [];
-          const thumbnailField = entryFields?.find((f: any) => f.label?.toLowerCase().includes("thumbnail"));
+          const thumbnailField = entryFields?.find((f: { label?: string; id?: string }) => (f.label?.toLowerCase() || '').includes("thumbnail"));
           let thumbnailUrl = "";
           if (thumbnailField) {
-            thumbnailUrl = submissionData[`${thumbnailField.id}_downloadUrl`] || submissionData[`${thumbnailField.label}_downloadUrl`] || submissionData[thumbnailField.id] || submissionData[thumbnailField.label] || "";
+            thumbnailUrl = submissionData[`${thumbnailField.id || ''}_downloadUrl`] || submissionData[`${thumbnailField.label || ''}_downloadUrl`] || submissionData[thumbnailField.id || ''] || submissionData[thumbnailField.label || ''] || "";
           }
           if (!thumbnailUrl) {
             const downloadUrlKey = Object.keys(submissionData).find((key) => key.endsWith("_downloadUrl"));
@@ -81,7 +100,7 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
           }
           
           if (thumbnailUrl) {
-            return <img src={thumbnailUrl} alt="Thumbnail" style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
+            return <Image src={thumbnailUrl} alt="Thumbnail" fill style={{ objectFit: "cover" }} unoptimized />;
           }
           return <EmojiEvents sx={{ fontSize: 80, color: "rgba(0,0,0,0.2)" }} />;
         })()}
@@ -93,29 +112,29 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
             {(() => {
               const sData = entry?.submission?.data || {};
               const entryFields = entry?.contest?.entryLevelTemplate?.schema?.fields || entry?.contest?.entry_level_template?.schema?.fields || [];
-              const entryTitleField = entryFields?.find((f: any) => {
+              const entryTitleField = entryFields?.find((f: { label?: string; id?: string }) => {
                 const l = f.label?.toLowerCase() || "";
                 return l.includes("title") || l.includes("project");
               });
 
               let entryTitle = "";
               if (entryTitleField && sData) {
-                entryTitle = sData[entryTitleField.label] || sData[entryTitleField.id];
+                entryTitle = sData[entryTitleField.label || ''] || sData[entryTitleField.id || ''];
               }
               if (!entryTitle) {
                 entryTitle = sData?.name_1 || sData?.ho1p00z0q || sData?.["Innovation Title"] || sData?.zvdskzwrw;
               }
               if (!entryTitle) {
                 const values = Object.entries(sData)
-                  .filter(([k, v]: [string, any]) => !["status", "isdraft"].includes(k.toLowerCase()) && typeof v === 'string' && v.trim() !== '' && isNaN(Number(v)) && !v.includes('http') && v.length < 60 && !/^[0-9+\-\s()]+$/.test(v))
-                  .map(([k, v]) => v);
+                  .filter(([k, v]: [string, unknown]) => !["status", "isdraft"].includes(k.toLowerCase()) && typeof v === 'string' && v.trim() !== '' && isNaN(Number(v)) && !v.includes('http') && v.length < 60 && !/^[0-9+\-\s()]+$/.test(v))
+                  .map(([, v]) => v);
                 if (values.length > 0) entryTitle = values[0] as string;
               }
 
               let category = "";
-              const categoryField = entryFields?.find((f: any) => f.label?.toLowerCase().includes("category"));
+              const categoryField = entryFields?.find((f: { label?: string; id?: string }) => (f.label?.toLowerCase() || '').includes("category"));
               if (categoryField && sData) {
-                category = sData[categoryField.label] || sData[categoryField.id];
+                category = sData[categoryField.label || ''] || sData[categoryField.id || ''];
               }
 
               const displayTitle = entryTitle || "Untitled Entry";
@@ -164,7 +183,7 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
           <Box sx={{ textAlign: { xs: "left", md: "right" }, minWidth: 150 }}>
             {showStatus ? (
               (() => {
-                const { label, bg, color } = getStatusChipProps(entry.status);
+                const { label, bg, color } = getStatusChipProps(entry.status || '');
                 return (
                   <Chip
                     label={label}
@@ -179,14 +198,14 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
                 );
               })()
             ) : (
-              ["semifinal", "final", "winner"].includes(entry.status?.toLowerCase()) && (
+              ["semifinal", "final", "winner"].includes(entry.status?.toLowerCase() || '') && (
                 <>
                   <Typography variant="caption" sx={{ color: colors.TEXT_SECONDARY, textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
                     Total Public Vote
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 800, color: colors.PRIMARY, mt: 0.5, display: "flex", alignItems: "center", justifyContent: { xs: "flex-start", md: "flex-end" }, gap: 1 }}>
                     <HowToVote fontSize="small" />
-                    {entry.voteCount || 0}
+                    {String(entry.voteCount || 0)}
                   </Typography>
                 </>
               )
@@ -210,18 +229,18 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
           <Box component="span" sx={{ color: colors.TEXT_PRIMARY, fontWeight: 700 }}>
             {(() => {
               const rawAuthorData = entry?.participant?.submission?.data;
-              const authorData = rawAuthorData?.data || rawAuthorData || (entry?.participant as any)?.data || (entry?.participant as any)?.participant_profile_data || {};
+              const authorData = rawAuthorData?.data || rawAuthorData || ((entry?.participant as Record<string, unknown>)?.data as Record<string, unknown> | undefined) || ((entry?.participant as Record<string, unknown>)?.participant_profile_data as Record<string, unknown> | undefined) || {};
               const userFields = entry?.contest?.userLevelTemplate?.schema?.fields || entry?.contest?.user_level_template?.schema?.fields || [];
               
-              const firstNameField = userFields.find((f: any) => {
+              const firstNameField = userFields.find((f: { label?: string; id?: string }) => {
                 const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
                 return l.includes("firstname") || l === "first";
               });
-              const lastNameField = userFields.find((f: any) => {
+              const lastNameField = userFields.find((f: { label?: string; id?: string }) => {
                 const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
                 return l.includes("lastname") || l === "last";
               });
-              const fullNameField = userFields.find((f: any) => {
+              const fullNameField = userFields.find((f: { label?: string; id?: string }) => {
                 const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
                 return l.includes("fullname") || l === "name" || (l.includes("name") && !l.includes("first") && !l.includes("last"));
               });
@@ -229,21 +248,21 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
               let participantName = "";
 
               if (firstNameField || lastNameField) {
-                const first = firstNameField ? (authorData[firstNameField.label] || authorData[firstNameField.id]) : "";
-                const last = lastNameField ? (authorData[lastNameField.label] || authorData[lastNameField.id]) : "";
+                const first = firstNameField ? ((authorData as Record<string, unknown>)[firstNameField.label || ''] || (authorData as Record<string, unknown>)[firstNameField.id || '']) : "";
+                const last = lastNameField ? ((authorData as Record<string, unknown>)[lastNameField.label || ''] || (authorData as Record<string, unknown>)[lastNameField.id || '']) : "";
                 participantName = `${first || ""} ${last || ""}`.trim();
               }
               
               if (!participantName && fullNameField) {
-                participantName = authorData[fullNameField.label] || authorData[fullNameField.id];
+                participantName = ((authorData as Record<string, unknown>)[fullNameField.label || ''] as string) || ((authorData as Record<string, unknown>)[fullNameField.id || ''] as string);
               }
 
               if (!participantName && authorData && Object.keys(authorData).length > 0) {
-                const fallback = userFields.find((f: any) => f.label?.toLowerCase().includes("name"));
-                if (fallback && (authorData[fallback.label] || authorData[fallback.id])) {
-                  participantName = authorData[fallback.label] || authorData[fallback.id];
+                const fallback = userFields.find((f: { label?: string; id?: string }) => (f.label?.toLowerCase() || '').includes("name"));
+                if (fallback && ((authorData as Record<string, unknown>)[fallback.label || ''] || (authorData as Record<string, unknown>)[fallback.id || ''])) {
+                  participantName = ((authorData as Record<string, unknown>)[fallback.label || ''] as string) || ((authorData as Record<string, unknown>)[fallback.id || ''] as string);
                 } else {
-                  participantName = authorData.yg9snrxlh || authorData.an7ffo0mu || authorData.qlon5xekd;
+                  participantName = ((authorData as Record<string, unknown>)?.yg9snrxlh as string) || ((authorData as Record<string, unknown>)?.an7ffo0mu as string) || ((authorData as Record<string, unknown>)?.qlon5xekd as string);
                 }
               }
 
@@ -251,18 +270,18 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
                 const sData = entry.submission.data;
                 const entryFields = entry?.contest?.entryLevelTemplate?.schema?.fields || entry?.contest?.entry_level_template?.schema?.fields || [];
                 const allFields = [...userFields, ...entryFields];
-                const fNameField = allFields.find((f: any) => {
+                const fNameField = allFields.find((f: { label?: string; id?: string }) => {
                   const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
                   return l.includes("firstname") || l === "first";
                 });
-                const lNameField = allFields.find((f: any) => {
+                const lNameField = allFields.find((f: { label?: string; id?: string }) => {
                   const l = f.label?.toLowerCase().replace(/\s+/g, '') || "";
                   return l.includes("lastname") || l === "last";
                 });
                 
                 if (fNameField || lNameField) {
-                  const first = fNameField ? (sData[fNameField.label] || sData[fNameField.id]) : "";
-                  const last = lNameField ? (sData[lNameField.label] || sData[lNameField.id]) : "";
+                  const first = fNameField ? (sData[fNameField.label || ''] || sData[fNameField.id || '']) : "";
+                  const last = lNameField ? (sData[lNameField.label || ''] || sData[lNameField.id || '']) : "";
                   participantName = `${first || ""} ${last || ""}`.trim();
                 }
                 
@@ -273,7 +292,7 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
               }
 
               if (!participantName && authorData && Object.keys(authorData).length > 0) {
-                 const values = Object.values(authorData).filter((v: any) => typeof v === 'string' && v.trim() !== '' && isNaN(Number(v)) && !v.includes('http') && v.length < 60 && !/^[0-9+\-\s()]+$/.test(v));
+                 const values = Object.values(authorData as Record<string, unknown>).filter((v: unknown) => typeof v === 'string' && v.trim() !== '' && isNaN(Number(v)) && !v.includes('http') && v.length < 60 && !/^[0-9+\-\s()]+$/.test(v));
                  if (values.length > 0) participantName = values[0] as string;
               }
               
@@ -283,13 +302,13 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
           {(() => {
             const sData = entry?.submission?.data || {};
             const entryFields = entry?.contest?.entryLevelTemplate?.schema?.fields || entry?.contest?.entry_level_template?.schema?.fields || [];
-            const participationTypeField = entryFields.find((f: any) => {
+            const participationTypeField = entryFields.find((f: { label?: string; id?: string }) => {
                 const l = f.label?.toLowerCase() || "";
                 return l.includes("participation type") || l.includes("team or individual");
             });
             let type = "";
             if (participationTypeField) {
-                type = sData[participationTypeField.label] || sData[participationTypeField.id] || "";
+                type = sData[participationTypeField.label || ''] || sData[participationTypeField.id || ''] || "";
             }
             if (!type) {
               type = sData.d9ngw1qqv || "";
@@ -297,7 +316,7 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
             
             if (!type) return null;
 
-            const isTeam = type.toLowerCase().includes("team");
+            const isTeam = type.toLowerCase()?.includes("team");
 
             return (
               <Tooltip title={`Participation Type: ${type}`} arrow placement="top">
@@ -323,10 +342,10 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
               Submitted At
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 600, color: colors.TEXT_PRIMARY }}>
-              {new Date(entry.created_at).toLocaleString(undefined, {
+              {entry.created_at ? new Date(entry.created_at).toLocaleString(undefined, {
                 dateStyle: "medium",
                 timeStyle: "short",
-              })}
+              }) : "N/A"}
             </Typography>
           </Box>
         </Box>
@@ -336,7 +355,7 @@ export default function EntryHeroSection({ entry, colors, showStatus = false }: 
             <Typography variant="subtitle2" sx={{ color: "#dc2626", fontWeight: 700, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
               <Info fontSize="small" /> Reason for Rejection
             </Typography>
-            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, pl: 3 }}>{entry.rejectReason}</Typography>
+            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, pl: 3 }}>{String(entry.rejectReason)}</Typography>
           </Box>
         )}
       </Box>
