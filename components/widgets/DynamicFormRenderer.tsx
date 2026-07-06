@@ -1,5 +1,7 @@
 "use client";
 
+import { FilePreview } from "@/components/widgets/FilePreview";
+import { useSnackbar } from "@/context/SnackbarContext";
 import {
   Autocomplete,
   Box,
@@ -19,21 +21,17 @@ import {
   Slider,
   Switch,
   TextField,
-  Typography,
-  IconButton,
+  Typography
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import { FilePreview } from "@/components/widgets/FilePreview";
-import { useSnackbar } from "@/context/SnackbarContext";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
 import { useFormik } from "formik";
-import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
-import { parsePhoneNumberFromString, getExampleNumber } from "libphonenumber-js";
+import { getExampleNumber, parsePhoneNumberFromString } from "libphonenumber-js";
 import examples from "libphonenumber-js/examples.mobile.json";
-import React, { useState, useMemo, useEffect } from "react";
+import { MuiTelInput, matchIsValidTel } from "mui-tel-input";
+import React, { useMemo, useState } from "react";
 import * as Yup from "yup";
 
 import { countries } from "@/utils/constant";
@@ -579,7 +577,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                     } else if (value.replace(/\D/g, "").length > 15) {
                       return; // fallback max digits
                     }
-
+                    
+                    if (info.countryCode) formik.setFieldValue(`${val.id}_country`, info.countryCode);
                     formik.setFieldValue(val.id, value);
                     formik.setFieldTouched(val.id, true, false);
                   }}
@@ -620,13 +619,21 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                          width: "100%",
                          height: "100%",
                          backgroundImage: `url(https://flagcdn.com/w20/${(() => {
-                            let dc = (val.config?.defaultCountry || "IN") as any;
-                            const phoneVal = formik.values[val.id] || "";
-                            const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
-                            if (callingCodeMatch) {
-                              const cc = callingCodeMatch[1];
-                              const matched = countries.find(c => c.phone === cc);
-                              if (matched) dc = matched.code;
+                            let dc = formik.values[`${val.id}_country`];
+                            if (!dc) {
+                              dc = (val.config?.defaultCountry || "IN") as any;
+                              const phoneVal = formik.values[val.id] || "";
+                              const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
+                              if (callingCodeMatch) {
+                                const cc = callingCodeMatch[1];
+                                const matchedCountries = countries.filter(c => c.phone === cc);
+                                if (matchedCountries.length > 0) {
+                                  if (!matchedCountries.some(c => c.code === dc)) {
+                                    const usMatch = matchedCountries.find(c => c.code === "US");
+                                    dc = usMatch ? usMatch.code : matchedCountries[0].code;
+                                  }
+                                }
+                              }
                             }
                             return String(dc).toLowerCase();
                          })()}.png)`,
@@ -957,7 +964,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             )}
 
             {val.type === FIELDS_TYPE.FILE_UPLOAD && (
-              <Box sx={{ p: 1.5, border: "1px dashed", borderColor: "divider", borderRadius: "10px", position: "relative", width: { xs: "100%", sm: "fit-content" }, pr: { sm: 3 } }}>
+              <Box sx={{ p: 1.5, border: "1px dashed", borderColor: "divider", borderRadius: "10px", position: "relative", width: "48%", boxSizing: "border-box" }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, textAlign: "left" }}>
                     {val.label}{(val.required || val.false) && " *"}

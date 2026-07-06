@@ -1096,7 +1096,7 @@ export default function Signup() {
                               value={formik.values[field.id] || ""}
                               sx={{
                                 ...textFieldStyles,
-                                "& .MuiTelInput-Flag": {
+                                 "& .MuiTelInput-Flag": {
                                   position: "relative",
                                   "& > *": {
                                     opacity: 0,
@@ -1109,13 +1109,21 @@ export default function Signup() {
                                      width: "100%",
                                      height: "100%",
                                      backgroundImage: `url(https://flagcdn.com/w20/${(() => {
-                                        let dc = (field.config?.defaultCountry || selectedCountryCode) as any;
-                                        const phoneVal = formik.values[field.id] || "";
-                                        const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
-                                        if (callingCodeMatch) {
-                                          const cc = callingCodeMatch[1];
-                                          const matched = countries.find(c => c.phone === cc);
-                                          if (matched) dc = matched.code;
+                                        let dc = formik.values[`${field.id}_country`];
+                                        if (!dc) {
+                                          dc = (field.config?.defaultCountry || selectedCountryCode) as any;
+                                          const phoneVal = formik.values[field.id] || "";
+                                          const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
+                                          if (callingCodeMatch) {
+                                            const cc = callingCodeMatch[1];
+                                            const matchedCountries = countries.filter(c => c.phone === cc);
+                                            if (matchedCountries.length > 0) {
+                                              if (!matchedCountries.some(c => c.code === dc)) {
+                                                const usMatch = matchedCountries.find(c => c.code === "US");
+                                                dc = usMatch ? usMatch.code : matchedCountries[0].code;
+                                              }
+                                            }
+                                          }
                                         }
                                         return String(dc).toLowerCase();
                                      })()}.png)`,
@@ -1147,6 +1155,7 @@ export default function Signup() {
                                   return; // fallback max digits
                                 }
                                 
+                                if (info.countryCode) formik.setFieldValue(`${field.id}_country`, info.countryCode);
                                 formik.setFieldValue(field.id, value);
                                 formik.setFieldTouched(field.id, true, false);
                               }}

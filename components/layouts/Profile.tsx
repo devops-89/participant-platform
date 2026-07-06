@@ -564,7 +564,6 @@ export default function Profile() {
                             borderRadius: "10px",
                             display: "flex",
                             flexDirection: "column",
-                            gap: 2,
                             width: "100%",
                             boxSizing: "border-box",
                             transition: "all 0.2s ease-in-out",
@@ -574,12 +573,12 @@ export default function Profile() {
                           }}
                         >
                           
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, fontWeight: 600 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 2 }}>
+                            <Typography variant="body2" sx={{ color: colors.TEXT_PRIMARY, fontWeight: 600, textAlign: "left" }}>
                               {field.label}{field.required && " *"}
                             </Typography>
                             
-                            {!formik.values[field.id] && (
+                            {!formik.values[field.id] ? (
                               <Button
                                 variant="outlined"
                                 component="label"
@@ -604,28 +603,26 @@ export default function Profile() {
                                   }}
                                 />
                               </Button>
+                            ) : (
+                              <Box sx={{ display: "flex", alignItems: "center" }}>
+                                {(() => {
+                                  const fileVal = formik.values[field.id];
+                                  const downloadUrl = userData?.participant_profile_data?.[`${field.id}_downloadUrl`] 
+                                    || userData?.participant_profile_data?.[`${field.label}_downloadUrl`] 
+                                    || subData?.[`${field.id}_downloadUrl`] 
+                                    || subData?.[`${field.label}_downloadUrl`];
+                                  return (
+                                    <FilePreview 
+                                      fileVal={fileVal} 
+                                      previewUrl={typeof fileVal === "string" ? downloadUrl : undefined}
+                                      label={field.label} 
+                                      onClear={() => formik.setFieldValue(field.id, null)} 
+                                    />
+                                  );
+                                })()}
+                              </Box>
                             )}
                           </Box>
-
-                          {formik.values[field.id] && (
-                            <Box sx={{ mt: 1, position: "relative", display: "flex", justifyContent: "flex-start", width: "100%" }}>
-                              {(() => {
-                                const fileVal = formik.values[field.id];
-                                const downloadUrl = userData?.participant_profile_data?.[`${field.id}_downloadUrl`] 
-                                  || userData?.participant_profile_data?.[`${field.label}_downloadUrl`] 
-                                  || subData?.[`${field.id}_downloadUrl`] 
-                                  || subData?.[`${field.label}_downloadUrl`];
-                                return (
-                                  <FilePreview 
-                                    fileVal={fileVal} 
-                                    previewUrl={typeof fileVal === "string" ? downloadUrl : undefined}
-                                    label={field.label} 
-                                    onClear={() => formik.setFieldValue(field.id, null)} 
-                                  />
-                                );
-                              })()}
-                            </Box>
-                          )}
                         </Box>
                         {formik.touched[field.id] && formik.errors[field.id] && (
                           <FormHelperText error sx={{ mx: 2, mt: 0.5 }}>
@@ -741,7 +738,8 @@ export default function Profile() {
                                 } else if (value.replace(/\D/g, "").length > 15) {
                                   return; // fallback max digits
                                 }
-
+                                
+                                if (info.countryCode) formik.setFieldValue(`${field.id}_country`, info.countryCode);
                                 formik.setFieldValue(field.id, value);
                                 formik.setFieldTouched(field.id, true, false);
                               }}
@@ -763,7 +761,7 @@ export default function Profile() {
                               helperText={formik.touched[field.id] && typeof formik.errors[field.id] === "string" ? String(formik.errors[field.id]) : undefined}
                               sx={{
                                 ...textFieldStyles,
-                                "& .MuiTelInput-Flag": {
+                                 "& .MuiTelInput-Flag": {
                                   position: "relative",
                                   "& > *": {
                                     opacity: 0,
@@ -775,14 +773,22 @@ export default function Profile() {
                                      left: 0,
                                      width: "100%",
                                      height: "100%",
-                                     backgroundImage: `url(https://flagcdn.com/w20/${(() => {
-                                        let dc = (field.config?.defaultCountry || "AE") as any;
-                                        const phoneVal = formik.values[field.id] || "";
-                                        const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
-                                        if (callingCodeMatch) {
-                                          const cc = callingCodeMatch[1];
-                                          const matched = countries.find(c => c.phone === cc);
-                                          if (matched) dc = matched.code;
+                                      backgroundImage: `url(https://flagcdn.com/w20/${(() => {
+                                        let dc = formik.values[`${field.id}_country`];
+                                        if (!dc) {
+                                          dc = (field.config?.defaultCountry || "AE") as any;
+                                          const phoneVal = formik.values[field.id] || "";
+                                          const callingCodeMatch = phoneVal.match(/^\+(\d{1,4})/);
+                                          if (callingCodeMatch) {
+                                            const cc = callingCodeMatch[1];
+                                            const matchedCountries = countries.filter(c => c.phone === cc);
+                                            if (matchedCountries.length > 0) {
+                                              if (!matchedCountries.some(c => c.code === dc)) {
+                                                const usMatch = matchedCountries.find(c => c.code === "US");
+                                                dc = usMatch ? usMatch.code : matchedCountries[0].code;
+                                              }
+                                            }
+                                          }
                                         }
                                         return String(dc).toLowerCase();
                                      })()}.png)`,
