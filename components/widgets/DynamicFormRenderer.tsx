@@ -371,6 +371,13 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             return dayjs(value as string | number).isAfter(dayjs().startOf('day'));
           });
         }
+
+        if (lowercaseLabel.includes("patent filing")) {
+          validator = validator.test("patent-year", "Patent filing year must be 2010 or later", (value: unknown) => {
+             if (!value) return true;
+             return dayjs(value as string | number).year() >= 2010;
+          });
+        }
       }
 
       if (lowercaseLabel.includes("email")) {
@@ -438,7 +445,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Grid container spacing={4}>
+      <Grid container spacing={2}>
         {currentPageFields?.map((val: ContestTemplateField) => {
           const isFullWidth = val.type === FIELDS_TYPE.TEXTBLOCK || val.type === FIELDS_TYPE.TEXTAREA || val.type === FIELDS_TYPE.SWITCH || val.type === FIELDS_TYPE.CHECKBOX || val.type === FIELDS_TYPE.RADIO || val.type === FIELDS_TYPE.FILE_UPLOAD;
           if (val.type === FIELDS_TYPE.STEP_BREAK) {
@@ -664,6 +671,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
               <Box>
                 {(() => {
                   const isBirthDate = val.label?.toLowerCase().includes("birth");
+                  const isPatentDate = val.label?.toLowerCase().includes("patent filing");
                   return (
                     <DatePicker
                       label={val.label || val.placeholder}
@@ -683,7 +691,13 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                       }}
                       disablePast={isBirthDate ? false : !!val.config?.disablePast}
                       disableFuture={isBirthDate ? true : !!val.config?.disableFuture}
-                      minDate={isBirthDate ? dayjs().subtract(25, 'year') : undefined}
+                      minDate={
+                        isBirthDate 
+                          ? dayjs().subtract(25, 'year') 
+                          : isPatentDate 
+                            ? dayjs("2010-01-01") 
+                            : undefined
+                      }
                       maxDate={isBirthDate ? dayjs().subtract(10, 'year') : undefined}
                       sx={{
                         width: "100%",
