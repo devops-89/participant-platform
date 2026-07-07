@@ -174,17 +174,20 @@ export default function VerifyOtp() {
         
         router.push("/dashboard");
       } catch (error: unknown) {
-        const err = error as { response?: { data?: { message?: string } }, message?: string };
-        let errorMessage = err?.response?.data?.message || err?.message || "OTP is Invalid or Expired";
+        const err = error as { response?: { data?: { message?: string, error?: string } }, message?: string };
+        let errorMessage = err?.response?.data?.message || err?.message || "OTP is invalid or expired";
         
         const lowerMsg = errorMessage.toLowerCase();
+        const serverError = err?.response?.data?.error?.toLowerCase() || "";
         
         if (
           lowerMsg.includes("validation error") || 
           lowerMsg.includes("invalid") || 
-          lowerMsg.includes("expired")
+          lowerMsg.includes("expired") ||
+          lowerMsg.includes("failed") ||
+          serverError.includes("invalid")
         ) {
-          errorMessage = "OTP is Invalid or Expired";
+          errorMessage = "OTP is invalid or expired";
         }
         
         showSnackbar(errorMessage, "error");

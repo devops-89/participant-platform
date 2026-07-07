@@ -692,6 +692,10 @@ export default function Profile() {
                           return (
                             <MuiTelInput
                               onKeyDown={(e) => {
+                                if (e.key === "+") {
+                                  e.preventDefault();
+                                  return;
+                                }
                                 const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter"];
                                 if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
                                   return;
@@ -727,35 +731,41 @@ export default function Profile() {
                               label={`${field.label} ${field.required ? "*" : ""}`}
                               value={String(formik.values[field.id] || "")}
                               onChange={(value, info) => {
-                                const currentCountry = (info.countryCode as import("libphonenumber-js").CountryCode) || parsed?.country || field.config?.defaultCountry || "AE";
-                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
+                                const cleanedValue = value.replace(/(?!^\+)\+/g, '');
+                                
+                                if (info.countryCode) {
+                                  formik.setFieldValue(`${field.id}_country`, info.countryCode);
+                                }
+
+                                const validationCountry = info.countryCode || field.config?.defaultCountry || "AE";
+                                const ex = getExampleNumber(validationCountry as import("libphonenumber-js").CountryCode, examples);
                                 
                                 const phoneVal = String(formik.values[field.id] || "");
                                 const oldParsed = parsePhoneNumberFromString(phoneVal);
                                 
-                                if (oldParsed?.isValid() && value.length > phoneVal.length) {
+                                if (oldParsed?.isValid() && cleanedValue.length > phoneVal.length) {
                                   return; // Block typing more digits if it's already a perfectly valid number
                                 }
 
                                 if (ex) {
                                   const maxDigits = ex.number.replace(/\D/g, "").length;
-                                  const currentDigits = value.replace(/\D/g, "").length;
+                                  const currentDigits = cleanedValue.replace(/\D/g, "").length;
                                   if (currentDigits > maxDigits) {
                                     return; // block typing more digits than the example number allows
                                   }
-                                } else if (value.replace(/\D/g, "").length > 15) {
+                                } else if (cleanedValue.replace(/\D/g, "").length > 15) {
                                   return; // fallback max digits
                                 }
                                 
-                                if (info.countryCode) formik.setFieldValue(`${field.id}_country`, info.countryCode);
-                                formik.setFieldValue(field.id, value);
+                                formik.setFieldValue(field.id, cleanedValue);
                                 formik.setFieldTouched(field.id, true, false);
                               }}
                               defaultCountry={(() => {
-                                const dc = (field.config?.defaultCountry || "AE") as import("libphonenumber-js").CountryCode;
+                                let dc = formik.values[`${field.id}_country`] as string;
+                                if (!dc) dc = (field.config?.defaultCountry || "AE") as string;
                                 const oc = field.config?.onlyCountries as string[];
                                 if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0] as import("libphonenumber-js").CountryCode;
-                                return dc;
+                                return dc as import("libphonenumber-js").CountryCode;
                               })()}
                               onlyCountries={(() => {
                                 const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];

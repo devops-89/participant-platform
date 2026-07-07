@@ -535,6 +535,10 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   <Box>
                     <MuiTelInput
                       onKeyDown={(e) => {
+                        if (e.key === "+") {
+                          e.preventDefault();
+                          return;
+                        }
                         const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter"];
                         if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
                           return;
@@ -564,40 +568,51 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                         }
                       }}
                       label={val.label || val.placeholder}
-                  variant={val.variant || "outlined"}
-                  fullWidth
-                  required={val.required }
-                  name={val.id}
-                  value={(formik.values[val.id] as string) || ""}
+                      variant={val.variant || "outlined"}
+                      fullWidth
+                      required={val.required }
+                      name={val.id}
+                      forceCallingCode={true}
+                      value={(formik.values[val.id] as string) || ""}
                   onChange={(value, info) => {
-                    const currentCountry = info.countryCode || parsed?.country || val.config?.defaultCountry || "IN";
-                    const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
+                    // Strip any internal '+' signs (e.g. from pasted "+1 987...")
+                    // to prevent ugly artifacts like "+91 +1 987..."
+                    const cleanedValue = value.replace(/(?!^\+)\+/g, '');
+
+                    // Since forceCallingCode={true} prevents the user from modifying the prefix,
+                    // any valid countryCode emitted here represents a dropdown selection.
+                    if (info.countryCode) {
+                      formik.setFieldValue(`${val.id}_country`, info.countryCode);
+                    }
+
+                    const validationCountry = info.countryCode || val.config?.defaultCountry || "IN";
+                    const ex = getExampleNumber(validationCountry as import("libphonenumber-js").CountryCode, examples);
                     
                     const phoneVal = (formik.values[val.id] as string) || "";
                     const oldParsed = parsePhoneNumberFromString(phoneVal);
                     
-                    if (oldParsed?.isValid() && value.length > phoneVal.length) {
+                    if (oldParsed?.isValid() && cleanedValue.length > phoneVal.length) {
                       return; // Block typing more digits if it's already a perfectly valid number
                     }
 
                     if (ex) {
                       const maxDigits = ex.number.replace(/\D/g, "").length;
-                      const currentDigits = value.replace(/\D/g, "").length;
+                      const currentDigits = cleanedValue.replace(/\D/g, "").length;
                       if (currentDigits > maxDigits) {
                         return; // block typing more digits than the example number allows
                       }
-                    } else if (value.replace(/\D/g, "").length > 15) {
+                    } else if (cleanedValue.replace(/\D/g, "").length > 15) {
                       return; // fallback max digits
                     }
                     
-                    if (info.countryCode) formik.setFieldValue(`${val.id}_country`, info.countryCode);
-                    formik.setFieldValue(val.id, value);
+                    formik.setFieldValue(val.id, cleanedValue);
                     formik.setFieldTouched(val.id, true, false);
                   }}
                   onBlur={() => formik.setFieldTouched(val.id, true)}
                   error={Boolean(getFieldError(val.id))}
                   defaultCountry={(() => {
-                    const dc = (val.config?.defaultCountry || "IN") as string;
+                    let dc = formik.values[`${val.id}_country`] as string;
+                    if (!dc) dc = (val.config?.defaultCountry || "IN") as string;
                     const oc = val.config?.onlyCountries;
                     if (Array.isArray(oc) && oc.length > 0 && !(oc as string[]).includes(dc)) return oc[0] as import("libphonenumber-js").CountryCode;
                     return dc as import("libphonenumber-js").CountryCode;

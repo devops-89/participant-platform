@@ -1072,6 +1072,10 @@ export default function Signup() {
                           return (
                             <MuiTelInput
                               onKeyDown={(e) => {
+                                if (e.key === "+") {
+                                  e.preventDefault();
+                                  return;
+                                }
                                 const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Enter"];
                                 if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
                                   return;
@@ -1107,10 +1111,11 @@ export default function Signup() {
                               label={field.label}
                               required={field.required}
                               defaultCountry={(() => {
-                                const dc = (field.config?.defaultCountry || selectedCountryCode) as import("libphonenumber-js").CountryCode;
+                                let dc = formik.values[`${field.id}_country`] as string;
+                                if (!dc) dc = (field.config?.defaultCountry || selectedCountryCode) as string;
                                 const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];
-                                if (oc && oc.length > 0 && !oc.includes(dc)) return oc[0];
-                                return dc;
+                                if (oc && oc.length > 0 && !oc.includes(dc as import("libphonenumber-js").CountryCode)) return oc[0];
+                                return dc as import("libphonenumber-js").CountryCode;
                               })()}
                               onlyCountries={(() => {
                                 const oc = field.config?.onlyCountries as import("libphonenumber-js").CountryCode[];
@@ -1162,28 +1167,33 @@ export default function Signup() {
                                 }
                               }}
                               onChange={(value, info) => {
-                                const currentCountry = info.countryCode || parsed?.country || selectedCountryCode || "IN";
-                                const ex = getExampleNumber(currentCountry as import("libphonenumber-js").CountryCode, examples);
+                                const cleanedValue = value.replace(/(?!^\+)\+/g, '');
+                                
+                                if (info.countryCode) {
+                                  formik.setFieldValue(`${field.id}_country`, info.countryCode);
+                                }
+
+                                const validationCountry = info.countryCode || selectedCountryCode || "IN";
+                                const ex = getExampleNumber(validationCountry as import("libphonenumber-js").CountryCode, examples);
                                 
                                 const phoneVal = String(formik.values[field.id] || "");
                                 const oldParsed = parsePhoneNumberFromString(phoneVal);
                                 
-                                if (oldParsed?.isValid() && value.length > phoneVal.length) {
+                                if (oldParsed?.isValid() && cleanedValue.length > phoneVal.length) {
                                   return; // Block typing more digits if it's already a perfectly valid number
                                 }
 
                                 if (ex) {
                                   const maxDigits = ex.number.replace(/\D/g, "").length;
-                                  const currentDigits = value.replace(/\D/g, "").length;
+                                  const currentDigits = cleanedValue.replace(/\D/g, "").length;
                                   if (currentDigits > maxDigits) {
                                     return; // block typing more digits than the example number allows
                                   }
-                                } else if (value.replace(/\D/g, "").length > 15) {
+                                } else if (cleanedValue.replace(/\D/g, "").length > 15) {
                                   return; // fallback max digits
                                 }
                                 
-                                if (info.countryCode) formik.setFieldValue(`${field.id}_country`, info.countryCode);
-                                formik.setFieldValue(field.id, value);
+                                formik.setFieldValue(field.id, cleanedValue);
                                 formik.setFieldTouched(field.id, true, false);
                               }}
                               onBlur={() => formik.setFieldTouched(field.id, true)}
