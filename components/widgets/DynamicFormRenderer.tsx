@@ -689,8 +689,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                           required: val.required ,
                         },
                       }}
-                      disablePast={isBirthDate ? false : !!val.config?.disablePast}
-                      disableFuture={isBirthDate ? true : !!val.config?.disableFuture}
+                      disablePast={isBirthDate ? false : (val.config?.disablePast === true || val.config?.disablePast === 'true')}
+                      disableFuture={isBirthDate ? true : (val.config?.disableFuture === true || val.config?.disableFuture === 'true')}
                       minDate={
                         isBirthDate 
                           ? dayjs().subtract(25, 'year') 
@@ -923,7 +923,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                       />
                     )
                   }
-                  label={val.label}
+                  label={<>{val.label}{(val.required) && " *"}</>}
                 />
                 {getFieldError(val.id) && (
                   <FormHelperText error>{getFieldError(val.id)}</FormHelperText>
@@ -937,7 +937,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 error={Boolean(getFieldError(val.id))}
               >
                 <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
-                  {val.label}
+                  {val.label}{(val.required) && " *"}
                 </Typography>
                 <RadioGroup
                   name={val.id}
@@ -958,7 +958,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             {(val.type === FIELDS_TYPE.SLIDER || val.type === FIELDS_TYPE.RATING) && (
               <Box sx={{ px: 1 }}>
                 <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
-                  {val.label}
+                  {val.label}{(val.required) && " *"}
                 </Typography>
                 {val.type === FIELDS_TYPE.SLIDER ? (
                   <Slider
