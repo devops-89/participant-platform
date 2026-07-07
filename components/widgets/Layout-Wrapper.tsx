@@ -42,14 +42,14 @@ const LayoutWrapper = ({ children }: LayoutWrapperProps) => {
   }, []);
 
   // Synchronously evaluate token during render (after mount) to prevent stale state bugs
-  const token = mounted ? (typeof window !== "undefined" ? localStorage.getItem("accessToken") : null) : null;
+  const token = mounted ? (typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null) : null;
 
   useEffect(() => {
     if (!mounted) return;
     
     if (!isAuthPage && !token) {
-      if (localStorage.getItem("intentionalLogout")) {
-        localStorage.removeItem("intentionalLogout");
+      if (sessionStorage.getItem("intentionalLogout")) {
+        sessionStorage.removeItem("intentionalLogout");
       } else {
         showSnackbar("Session expired. Please log in again.", "error");
       }

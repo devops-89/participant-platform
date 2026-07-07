@@ -20,16 +20,16 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
-      const refreshToken = localStorage.getItem("refreshToken") || "";
+      const refreshToken = sessionStorage.getItem("refreshToken") || "";
       await AuthControllers.logout({ refreshToken });
     } catch (err) {
       console.error("Logout API failed, continuing with local cleanup...", err);
     }
     
-    localStorage.setItem("intentionalLogout", "true");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
+    sessionStorage.setItem("intentionalLogout", "true");
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("refreshToken");
+    sessionStorage.removeItem("user");
     showSnackbar("Logged out successfully!", "success");
     router.push("/");
   };
@@ -38,7 +38,7 @@ const Header = () => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
 
-    const token = localStorage.getItem("accessToken");
+    const token = sessionStorage.getItem("accessToken");
     if (!token) {
       router.push("/");
       return;
@@ -86,7 +86,7 @@ const Header = () => {
         console.error("Failed to fetch participant details for header", error);
         
         // Fallback to local storage if API fails
-        const userStr = localStorage.getItem("user");
+        const userStr = sessionStorage.getItem("user");
         if (userStr) {
            const localUser = JSON.parse(userStr);
 

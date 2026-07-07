@@ -36,7 +36,7 @@ const Entries = () => {
           const meRes = await AuthControllers.getParticipants();
           if (meRes?.data) {
             userObj = meRes.data;
-            localStorage.setItem("user", JSON.stringify(userObj));
+            sessionStorage.setItem("user", JSON.stringify(userObj));
           }
         } catch (e) {
           console.error("Failed to fetch /me", e);
@@ -44,7 +44,7 @@ const Entries = () => {
 
         if (!userObj) {
           try {
-            const userStr = localStorage.getItem("user");
+            const userStr = sessionStorage.getItem("user");
             if (userStr) userObj = JSON.parse(userStr);
           } catch {}
         }
@@ -178,7 +178,7 @@ const Entries = () => {
 
                 let authorName = "Unknown";
                 try {
-                  const uStr = localStorage.getItem("user");
+                  const uStr = sessionStorage.getItem("user");
                   if (uStr) {
                     const u = JSON.parse(uStr);
                     authorName = u.fullName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Unknown";

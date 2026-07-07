@@ -49,7 +49,7 @@ const AddEntry = () => {
 
         if (!hasLocalContestData) {
           try {
-            const userStr = localStorage.getItem("user");
+            const userStr = sessionStorage.getItem("user");
             if (userStr) {
               const user = JSON.parse(userStr);
               if (user?.contests && user.contests.length > 0) {
@@ -102,7 +102,7 @@ const AddEntry = () => {
             const meRes = await AuthControllers.getParticipants();
             if (meRes?.data) {
               userObj = meRes.data;
-              localStorage.setItem("user", JSON.stringify(userObj));
+              sessionStorage.setItem("user", JSON.stringify(userObj));
             }
           } catch {
             console.error("Failed to fetch /me");
@@ -110,7 +110,7 @@ const AddEntry = () => {
 
           if (!userObj) {
             try {
-              const userStr = localStorage.getItem("user");
+              const userStr = sessionStorage.getItem("user");
               if (userStr) userObj = JSON.parse(userStr);
             } catch {}
           }

@@ -134,7 +134,23 @@ const ForgotPassword = () => {
                 variant="outlined"
                 sx={textFieldStyles}
                 value={formik.values.email}
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parts = val.split('@');
+                  if (parts.length === 2) {
+                    const domain = parts[1];
+                    const lastDotIndex = domain.lastIndexOf('.');
+                    if (lastDotIndex !== -1) {
+                      const tld = domain.substring(lastDotIndex + 1).toLowerCase();
+                      const validTlds = ['com', 'org', 'net', 'in', 'edu', 'gov', 'mil', 'info', 'biz', 'co', 'us', 'uk'];
+                      const isPrefix = validTlds.some(v => v.startsWith(tld));
+                      if (!isPrefix && tld.length > 0) {
+                        return; // Block input
+                      }
+                    }
+                  }
+                  formik.handleChange(e);
+                }}
                 onBlur={formik.handleBlur}
                 error={
                   formik.touched.email &&

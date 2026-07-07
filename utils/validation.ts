@@ -3,8 +3,8 @@ import * as Yup from "yup";
 export const Login_Validation = Yup.object({
   email: Yup.string()
     .matches(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
-      "Please Enter Valid Email"
+      /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.(com|org|net|in|co\.in|edu|gov|mil|info|biz|co|us|uk)$/i,
+      "Please enter a valid email address ending with .com, .org, .in, etc."
     )
     .required("Please Enter Email"),
   password: Yup.string().required("Please Enter Password"),
@@ -15,8 +15,8 @@ export const AddUser_Validation = Yup.object({
   lastName: Yup.string().required("Please Enter Last Name"),
   email: Yup.string()
     .matches(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
-      "Please Enter Valid Email"
+      /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.(com|org|net|in|co\.in|edu|gov|mil|info|biz|co|us|uk)$/i,
+      "Please enter a valid email address ending with .com, .org, .in, etc."
     )
     .required("Please Enter Email"),
   phoneNumber: Yup.string()
@@ -56,8 +56,8 @@ export const CONTEST_VALIDATION = Yup.object({
 export const ForgotPassword_Validation = Yup.object({
   email: Yup.string()
     .matches(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/,
-      "Please Enter Valid Email"
+      /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.(com|org|net|in|co\.in|edu|gov|mil|info|biz|co|us|uk)$/i,
+      "Please enter a valid email address ending with .com, .org, .in, etc."
     )
     .required("Please Enter Email"),
 });

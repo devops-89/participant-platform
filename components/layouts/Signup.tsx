@@ -1469,7 +1469,25 @@ export default function Signup() {
                         autoComplete={isPassword ? "new-password" : "off"}
                         sx={textFieldStyles}
                         value={String(formik.values[field.id] || "")}
-                        onChange={formik.handleChange}
+                        onChange={(e) => {
+                          if (field.label.toLowerCase().includes('email') || field.id.toLowerCase().includes('email')) {
+                            const val = e.target.value;
+                            const parts = val.split('@');
+                            if (parts.length === 2) {
+                              const domain = parts[1];
+                              const lastDotIndex = domain.lastIndexOf('.');
+                              if (lastDotIndex !== -1) {
+                                const tld = domain.substring(lastDotIndex + 1).toLowerCase();
+                                const validTlds = ['com', 'org', 'net', 'in', 'edu', 'gov', 'mil', 'info', 'biz', 'co', 'us', 'uk'];
+                                const isPrefix = validTlds.some(v => v.startsWith(tld));
+                                if (!isPrefix && tld.length > 0) {
+                                  return; // Block input
+                                }
+                              }
+                            }
+                          }
+                          formik.handleChange(e);
+                        }}
                         onBlur={formik.handleBlur}
                         error={Boolean(getFieldError(field.id))}
                         helperText={getFieldError(field.id) || field.helperText}

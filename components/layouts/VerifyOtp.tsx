@@ -62,7 +62,7 @@ export default function VerifyOtp() {
 
   const handleResendOtp = async () => {
     try {
-      const emailParam = email || localStorage.getItem("resetEmail");
+      const emailParam = email || sessionStorage.getItem("resetEmail");
       if (!emailParam) {
         showSnackbar("Email not found. Please try again.", "error");
         return;
@@ -122,7 +122,7 @@ export default function VerifyOtp() {
           return;
         }
 
-        const emailParam = email || localStorage.getItem("resetEmail") || "";
+        const emailParam = email || sessionStorage.getItem("resetEmail") || "";
 
         if (flow === "forgot") {
           const response = await AuthControllers.resetPassword({
@@ -159,17 +159,17 @@ export default function VerifyOtp() {
         
         const token = res?.data?.data?.accessToken || res?.data?.accessToken || res?.data?.data?.token || res?.data?.token;
         if (token) {
-          localStorage.setItem("accessToken", token);
+          sessionStorage.setItem("accessToken", token);
         }
         
         const refreshToken = res?.data?.data?.refreshToken || res?.data?.refreshToken;
         if (refreshToken) {
-          localStorage.setItem("refreshToken", refreshToken);
+          sessionStorage.setItem("refreshToken", refreshToken);
         }
 
         const userData = res?.data?.data?.user || res?.data?.user;
         if (userData) {
-          localStorage.setItem("user", JSON.stringify(userData));
+          sessionStorage.setItem("user", JSON.stringify(userData));
         }
         
         router.push("/dashboard");

@@ -6,7 +6,7 @@ export const useGuestGuard = () => {
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
     if (token) {
       router.replace('/dashboard');
     } else {

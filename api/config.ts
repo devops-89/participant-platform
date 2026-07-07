@@ -9,7 +9,7 @@ authSecuredApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
+        ? sessionStorage.getItem("accessToken")
         : null;
 
     if (token && config.headers) {
@@ -37,7 +37,7 @@ userSecuredApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
+        ? sessionStorage.getItem("accessToken")
         : null;
 
     if (token && config.headers) {
@@ -57,7 +57,7 @@ contestSecuredApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
+        ? sessionStorage.getItem("accessToken")
         : null;
 
     if (token && config.headers) {
@@ -77,7 +77,7 @@ entrySecuredApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
+        ? sessionStorage.getItem("accessToken")
         : null;
 
     if (token && config.headers) {
@@ -97,7 +97,7 @@ formSecuredApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
+        ? sessionStorage.getItem("accessToken")
         : null;
 
     if (token && config.headers) {

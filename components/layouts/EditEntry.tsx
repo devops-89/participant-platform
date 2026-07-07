@@ -41,7 +41,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
 
         let hasLocalContestData = false;
         try {
-          const userStr = localStorage.getItem("user");
+          const userStr = sessionStorage.getItem("user");
           if (userStr) {
             const user = JSON.parse(userStr);
             if (user?.contests && user.contests.length > 0) {
@@ -105,7 +105,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
                 const meRes = await AuthControllers.getParticipants();
                 if (meRes?.data) {
                   userObj = meRes.data;
-                  localStorage.setItem("user", JSON.stringify(userObj));
+                  sessionStorage.setItem("user", JSON.stringify(userObj));
                 }
               } catch (e) {
                 console.error("Failed to fetch /me", e);
@@ -113,7 +113,7 @@ const EditEntry = ({ entryId }: { entryId: string }) => {
 
               if (!userObj) {
                 try {
-                  const userStr = localStorage.getItem("user");
+                  const userStr = sessionStorage.getItem("user");
                   if (userStr) userObj = JSON.parse(userStr) as UserObj;
                 } catch {}
               }

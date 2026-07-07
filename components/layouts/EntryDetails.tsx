@@ -51,7 +51,7 @@ const EntryDetails = ({ entryId }: { entryId: string }) => {
         let templateFieldsFromApi: TemplateField[] = [];
         let hasLocalContestData = false;
         try {
-          const userStr = localStorage.getItem("user");
+          const userStr = sessionStorage.getItem("user");
           if (userStr) {
             const user = JSON.parse(userStr);
             if (user?.participants && Array.isArray(user.participants)) {

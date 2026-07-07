@@ -29,7 +29,7 @@ const Contests = () => {
 
   useEffect(() => {
     try {
-      const userStr = localStorage.getItem("user");
+      const userStr = sessionStorage.getItem("user");
       if (userStr) {
         const parsedUser = JSON.parse(userStr) as { participants?: { contest?: ContestType }[] };
         Promise.resolve().then(() => {
@@ -50,7 +50,7 @@ const Contests = () => {
         const res = await AuthControllers.getParticipants();
         if (res?.data) {
           setUser((res.data as Record<string, unknown>));
-          localStorage.setItem("user", JSON.stringify((res.data as Record<string, unknown>)));
+          sessionStorage.setItem("user", JSON.stringify((res.data as Record<string, unknown>)));
           const participants = (res.data as { participants?: Array<{ contest?: ContestType }> }).participants;
           if (participants && Array.isArray(participants)) {
              const userContests = participants

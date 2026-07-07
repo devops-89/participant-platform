@@ -65,14 +65,14 @@ export const useLogin = () => {
       }
 
       if (token) {
-        localStorage.setItem("accessToken", token);
+        sessionStorage.setItem("accessToken", token);
       }
 
       const refreshToken =
         res?.data?.data?.refreshToken || res?.data?.refreshToken;
 
       if (refreshToken) {
-        localStorage.setItem("refreshToken", refreshToken);
+        sessionStorage.setItem("refreshToken", refreshToken);
       }
 
       const userData =
@@ -82,7 +82,7 @@ export const useLogin = () => {
           ...values,
         };
 
-      localStorage.setItem("user", JSON.stringify(userData));
+      sessionStorage.setItem("user", JSON.stringify(userData));
 
       showSnackbar("Logged in successfully!", "success");
       router.push("/dashboard");
