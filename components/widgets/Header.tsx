@@ -2,7 +2,7 @@
 import { AuthControllers } from "@/api/authControllers";
 import { useAppTheme } from "@/context/ThemeContext";
 import { LogoutOutlined } from "@mui/icons-material";
-import { Avatar, Box, Button, Paper, Tooltip, Typography } from "@mui/material";
+import { Avatar, Box, Button, Paper, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -161,7 +161,6 @@ const Header = () => {
           onMouseLeave={() => setMenuOpen(false)}
           sx={{ position: "relative", py: 1 }}
         >
-          <Tooltip title="My Profile">
             <Box
               sx={{
                 p: "2px",
@@ -190,7 +189,6 @@ const Header = () => {
                 {!userAvatar && userName ? userName.charAt(0).toUpperCase() : null}
               </Avatar>
             </Box>
-          </Tooltip>
 
           {/* Hover Menu */}
           <Box
